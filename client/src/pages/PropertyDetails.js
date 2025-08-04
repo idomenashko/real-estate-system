@@ -1,147 +1,418 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { propertyService } from '../services/propertyService';
-import { dealService } from '../services/dealService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { FireIcon } from '@heroicons/react/24/outline';
-import { toast } from 'react-hot-toast';
+import { 
+  MapPinIcon, 
+  HomeIcon, 
+  CurrencyDollarIcon,
+  FireIcon,
+  PhoneIcon,
+  GlobeAltIcon,
+  ArrowLeftIcon,
+  StarIcon,
+  BuildingOfficeIcon,
+  UserIcon
+} from '@heroicons/react/24/outline';
 
 const PropertyDetails = () => {
   const { propertyId } = useParams();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('details');
 
-  // Fetch property data
-  const { data, isLoading, error } = useQuery(
+  const { data: property, isLoading, error } = useQuery(
     ['property', propertyId],
-    () => propertyService.getProperty(propertyId)
-  );
-
-  // Fetch property analysis
-  const { data: analysisData, isLoading: loadingAnalysis } = useQuery(
-    ['propertyAnalysis', propertyId],
-    () => propertyService.getPropertyAnalysis(propertyId)
-  );
-
-  if (isLoading || loadingAnalysis) return <LoadingSpinner />;
-  if (error) return <div className="text-center text-red-600">שגיאה בטעינת נכס</div>;
-  if (!data) return <div className="text-center text-gray-500">לא נמצא נכס</div>;
-
-  const property = data;
-  const analysis = analysisData?.analysis;
-
-  // Handle create deal
-  const handleCreateDeal = async () => {
-    try {
-      await dealService.createDeal({
-        propertyId: property._id,
-        originalPrice: property.price,
-        commissionPercentage: undefined,
-        contactName: property.contactName,
-        contactPhone: property.contactPhone,
-        contactEmail: property.contactEmail
-      });
-      toast.success('עסקה נוצרה בהצלחה!');
-      navigate('/deals');
-    } catch (err) {
-      toast.error(err?.response?.data?.error?.message || 'שגיאה ביצירת עסקה');
+    () => propertyService.getPropertyById(propertyId),
+    {
+      enabled: !!propertyId,
     }
+  );
+
+  const { data: analysis } = useQuery(
+    ['propertyAnalysis', propertyId],
+    () => propertyService.getPropertyAnalysis(propertyId),
+    {
+      enabled: !!propertyId,
+    }
+  );
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error || !property) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">נכס לא נמצא</h2>
+          <p className="text-gray-600 mb-6">הנכס שחיפשת לא נמצא במערכת</p>
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="btn-primary"
+          >
+            חזור לדשבורד
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleExternalLink = (url) => {
+    window.open(url, '_blank');
+  };
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('he-IL').format(price);
+  };
+
+  const getPropertyTypeText = (type) => {
+    const types = {
+      'apartment': 'דירה',
+      'house': 'בית פרטי',
+      'penthouse': 'נטהאוס',
+      'garden_apartment': 'דירת גן',
+      'duplex': 'דופלקס'
+    };
+    return types[type] || type;
+  };
+
+  const getConditionText = (condition) => {
+    const conditions = {
+      'excellent': 'מצוין',
+      'good': 'טוב',
+      'fair': 'סביר',
+      'needs_renovation': 'דרוש שיפוץ',
+      'new': 'חדש'
+    };
+    return conditions[condition] || condition;
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+      {/* Header */}
+      <div className="mb-6">
+        <button 
+          onClick={() => navigate(-1)}
+          className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
+        >
+          <ArrowLeftIcon className="h-5 w-5 mr-2" />
+          חזור
+        </button>
+        
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{property.address}</h1>
-            <p className="text-gray-600">{property.city}, {property.neighborhood}</p>
-            <div className="flex items-center mt-2 space-x-4 space-x-reverse">
-              <span className="text-sm text-gray-500">{property.rooms} חדרים</span>
-              <span className="text-sm text-gray-500">{property.size} מ"ר</span>
-              <span className="text-sm text-gray-500">{property.propertyType}</span>
-              {property.isHotDeal && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                  <FireIcon className="h-3 w-3 ml-1" /> עסקה חמה
-                </span>
-              )}
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {property.address}
+            </h1>
+            <div className="flex items-center text-gray-600">
+              <MapPinIcon className="h-4 w-4 mr-2" />
+              {property.city}, {property.neighborhood}
             </div>
           </div>
-          <div className="text-left mt-4 md:mt-0">
-            <p className="text-2xl font-bold text-gray-900">₪{property.price?.toLocaleString()}</p>
-            <p className="text-sm text-gray-500">₪{property.pricePerSquareMeter?.toLocaleString()}/מ"ר</p>
-            <button
-              onClick={handleCreateDeal}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              פתח עסקה על נכס זה
-            </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">פרטי הנכס</h2>
-            <ul className="text-gray-700 space-y-1">
-              <li>קומה: {property.floor ?? '---'} מתוך {property.totalFloors ?? '---'}</li>
-              <li>מצב הנכס: {property.condition}</li>
-              <li>פינוי בינוי: {property.evictionBuilding ? 'כן' : 'לא'}</li>
-              <li>חניה: {property.parking ? 'כן' : 'לא'}</li>
-              <li>מעלית: {property.elevator ? 'כן' : 'לא'}</li>
-              <li>מרפסת: {property.balcony ? 'כן' : 'לא'}</li>
-              <li>גינה: {property.garden ? 'כן' : 'לא'}</li>
-              <li>מקור: {property.sourceWebsite}</li>
-              <li>תאריך הוספה: {new Date(property.createdAt).toLocaleDateString('he-IL')}</li>
-            </ul>
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">איש קשר</h2>
-            <ul className="text-gray-700 space-y-1">
-              <li>שם: {property.contactName || '---'}</li>
-              <li>טלפון: {property.contactPhone || '---'}</li>
-              <li>אימייל: {property.contactEmail || '---'}</li>
-              <li>
-                <a
-                  href={property.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  מעבר למודעה באתר המקורי
-                </a>
-              </li>
-            </ul>
-          </div>
+          
+          {property.isHotDeal && (
+            <div className="flex items-center bg-red-100 text-red-800 px-4 py-2 rounded-full">
+              <FireIcon className="h-5 w-5 mr-2" />
+              עסקה חמה
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Market Analysis */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">ניתוח שוק</h2>
-        {analysis ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <p className="text-gray-700 mb-2">מחיר ממוצע באזור: <span className="font-bold">₪{analysis.averagePriceInArea?.toLocaleString()}</span></p>
-              <p className="text-gray-700 mb-2">מחיר הנכס ביחס לממוצע: <span className="font-bold">{analysis.priceComparison}%</span></p>
-              <p className="text-gray-700 mb-2">פוטנציאל חיסכון: <span className="font-bold">₪{analysis.potentialSavings?.toLocaleString()}</span></p>
-              <p className="text-gray-700 mb-2">האם עסקה טובה? <span className={`font-bold ${analysis.isGoodDeal ? 'text-green-600' : 'text-red-600'}`}>{analysis.isGoodDeal ? 'כן' : 'לא'}</span></p>
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column - Property Info */}
+        <div className="lg:col-span-2">
+          {/* Property Image Placeholder */}
+          <div className="bg-gray-200 rounded-lg h-64 mb-6 flex items-center justify-center">
+            <div className="text-center">
+              <BuildingOfficeIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">תמונת הנכס</p>
+              <p className="text-sm text-gray-400">תמונות יוצגו כאן בעתיד</p>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-2">נכסים דומים שנמכרו</h3>
-              {analysis.similarProperties && analysis.similarProperties.length > 0 ? (
-                <ul className="text-gray-700 space-y-1">
-                  {analysis.similarProperties.map((sp, idx) => (
-                    <li key={idx}>
-                      {sp.address} - ₪{sp.price?.toLocaleString()} ({new Date(sp.soldDate).toLocaleDateString('he-IL')})
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-500">אין נתונים על נכסים דומים</p>
+          </div>
+
+          {/* Tabs */}
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="flex space-x-8 space-x-reverse">
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'details'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                פרטי הנכס
+              </button>
+              <button
+                onClick={() => setActiveTab('analysis')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'analysis'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                ניתוח שוק
+              </button>
+              <button
+                onClick={() => setActiveTab('contact')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'contact'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                פרטי קשר
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'details' && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">מידע בסיסי</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">סוג נכס:</span>
+                      <span className="font-medium">{getPropertyTypeText(property.propertyType)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">חדרים:</span>
+                      <span className="font-medium">{property.rooms}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">גודל:</span>
+                      <span className="font-medium">{property.size} מ"ר</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">קומה:</span>
+                      <span className="font-medium">{property.floor}/{property.totalFloors}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">מצב:</span>
+                      <span className="font-medium">{getConditionText(property.condition)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">מחיר ופרטים</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">מחיר:</span>
+                      <span className="font-bold text-green-600 text-lg">₪{formatPrice(property.price)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">מחיר למ"ר:</span>
+                      <span className="font-medium">₪{formatPrice(Math.round(property.price / property.size))}</span>
+                    </div>
+                    {property.hotDealScore && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">ציון עסקה:</span>
+                        <div className="flex items-center">
+                          <span className="font-medium mr-2">{property.hotDealScore}/100</span>
+                          <StarIcon className="h-4 w-4 text-yellow-500" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">שירותים ותכונות</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-2 ${property.parking ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm">חניה</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-2 ${property.elevator ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm">מעלית</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-2 ${property.balcony ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm">מרפסת</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-2 ${property.garden ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-sm">גינה</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {property.description && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">תיאור</h3>
+                  <p className="text-gray-700 leading-relaxed">{property.description}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'analysis' && analysis && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">ניתוח שוק</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">מחיר ממוצע באזור</p>
+                    <p className="text-2xl font-bold text-gray-900">₪{formatPrice(analysis.analysis.averagePriceInArea)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">השוואה למחיר</p>
+                    <p className={`text-2xl font-bold ${analysis.analysis.priceComparison < 100 ? 'text-green-600' : 'text-red-600'}`}>
+                      {analysis.analysis.priceComparison}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">חיסכון פוטנציאלי</p>
+                    <p className="text-2xl font-bold text-green-600">₪{formatPrice(analysis.analysis.potentialSavings)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">האם עסקה טובה?</p>
+                    <p className={`text-2xl font-bold ${analysis.analysis.isGoodDeal ? 'text-green-600' : 'text-red-600'}`}>
+                      {analysis.analysis.isGoodDeal ? 'כן' : 'לא'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {analysis.analysis.similarProperties.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">נכסים דומים באזור</h3>
+                  <div className="space-y-3">
+                    {analysis.analysis.similarProperties.slice(0, 5).map((similarProperty) => (
+                      <div key={similarProperty._id} className="border-b border-gray-200 pb-3 last:border-b-0">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{similarProperty.address}</p>
+                            <p className="text-sm text-gray-600">{similarProperty.rooms} חדרים, {similarProperty.size} מ"ר</p>
+                          </div>
+                          <p className="font-bold text-green-600">₪{formatPrice(similarProperty.price)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'contact' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">פרטי קשר</h3>
+                <div className="space-y-4">
+                  {property.contactName && (
+                    <div className="flex items-center">
+                      <UserIcon className="h-5 w-5 text-gray-400 mr-3" />
+                      <span className="font-medium">{property.contactName}</span>
+                    </div>
+                  )}
+                  {property.contactPhone && (
+                    <div className="flex items-center">
+                      <PhoneIcon className="h-5 w-5 text-gray-400 mr-3" />
+                      <a href={`tel:${property.contactPhone}`} className="text-blue-600 hover:text-blue-800">
+                        {property.contactPhone}
+                      </a>
+                    </div>
+                  )}
+                  {property.sourceUrl && (
+                    <div className="flex items-center">
+                      <GlobeAltIcon className="h-5 w-5 text-gray-400 mr-3" />
+                      <button
+                        onClick={() => handleExternalLink(property.sourceUrl)}
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        צפה באתר המקור
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">מידע נוסף</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">מקור:</span>
+                    <span className="font-medium">{property.sourceWebsite}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">תאריך הוספה:</span>
+                    <span className="font-medium">{new Date(property.createdAt).toLocaleDateString('he-IL')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">עודכן לאחרונה:</span>
+                    <span className="font-medium">{new Date(property.updatedAt).toLocaleDateString('he-IL')}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Price and Actions */}
+        <div className="space-y-6">
+          {/* Price Card */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="text-center mb-6">
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                ₪{formatPrice(property.price)}
+              </div>
+              <div className="text-sm text-gray-600">
+                ₪{formatPrice(Math.round(property.price / property.size))} למ"ר
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button className="w-full btn-primary">
+                <PhoneIcon className="h-5 w-5 mr-2" />
+                התקשר עכשיו
+              </button>
+              <button className="w-full btn-secondary">
+                <GlobeAltIcon className="h-5 w-5 mr-2" />
+                צפה באתר המקור
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">סטטיסטיקות מהירות</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">חדרים:</span>
+                <span className="font-medium">{property.rooms}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">גודל:</span>
+                <span className="font-medium">{property.size} מ"ר</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">קומה:</span>
+                <span className="font-medium">{property.floor}/{property.totalFloors}</span>
+              </div>
+              {property.hotDealScore && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">ציון עסקה:</span>
+                  <div className="flex items-center">
+                    <span className="font-medium mr-1">{property.hotDealScore}</span>
+                    <StarIcon className="h-4 w-4 text-yellow-500" />
+                  </div>
+                </div>
               )}
             </div>
           </div>
-        ) : (
-          <p className="text-gray-500">אין נתוני ניתוח שוק זמינים</p>
-        )}
+        </div>
       </div>
     </div>
   );

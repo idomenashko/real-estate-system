@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { propertyService } from '../services/propertyService';
 import { dealService } from '../services/dealService';
@@ -15,6 +16,7 @@ import {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch dashboard data
   const { data: propertyStats, isLoading: loadingStats } = useQuery(
@@ -46,6 +48,10 @@ const Dashboard = () => {
     'dealStats',
     dealService.getDealStats
   );
+
+  const handlePropertyClick = (propertyId) => {
+    navigate(`/properties/${propertyId}`);
+  };
 
   if (loadingStats || loadingPersonalizedHotDeals || loadingPersonalizedProperties || loadingDealStats) {
     return <LoadingSpinner />;
@@ -137,7 +143,7 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {personalizedHotDeals.personalizedHotDeals?.slice(0, 6).map((property) => (
-              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handlePropertyClick(property._id)}>
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -205,7 +211,7 @@ const Dashboard = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {personalizedProperties.properties?.slice(0, 8).map((property) => (
-              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handlePropertyClick(property._id)}>
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-gray-900 truncate">

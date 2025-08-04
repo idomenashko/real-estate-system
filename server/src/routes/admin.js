@@ -1,204 +1,186 @@
 const express = require('express');
-const User = require('../models/User');
-const Property = require('../models/Property');
-const Deal = require('../models/Deal');
 const { authenticateToken, requireAdmin } = require('../utils/auth');
+const scrapingService = require('../services/scrapingService');
+const Property = require('../models/Property');
 
 const router = express.Router();
 
-// Get system overview statistics
-router.get('/stats/overview', authenticateToken, requireAdmin, async (req, res) => {
+// All routes require admin authentication
+router.use(authenticateToken);
+router.use(requireAdmin);
+
+// Trigger manual scraping
+router.post('/scrape', async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const totalProperties = await Property.countDocuments();
-    const activeProperties = await Property.countDocuments({ status: 'active' });
-    const hotDeals = await Property.countDocuments({ isHotDeal: true, status: 'active' });
-    const totalDeals = await Deal.countDocuments();
-    const closedDeals = await Deal.countDocuments({ status: 'closed' });
-
-    const totalCommission = await Deal.aggregate([
-      { $match: { status: 'closed' } },
-      { $group: { _id: null, total: { $sum: '$commissionAmount' } } }
-    ]);
-
-    const usersByRole = await User.aggregate([
-      { $group: { _id: '$role', count: { $sum: 1 } } }
-    ]);
-
-    const propertiesBySource = await Property.aggregate([
-      { $group: { _id: '$sourceWebsite', count: { $sum: 1 } } }
-    ]);
-
+    const { filters = {} } = req.body;
+    
+    console.log('🔄 מתחיל סקרייפינג ידני...');
+    
+    const scrapedProperties = await scrapingService.scrapeAllWebsites(filters);
+    
     res.json({
-      users: {
-        total: totalUsers,
-        active: activeUsers,
-        byRole: usersByRole
-      },
-      properties: {
-        total: totalProperties,
-        active: activeProperties,
-        hotDeals,
-        bySource: propertiesBySource
-      },
-      deals: {
-        total: totalDeals,
-        closed: closedDeals,
-        totalCommission: Math.round(totalCommission[0]?.total || 0)
-      }
+      message: 'סקרייפינג הושלם בהצלחה',
+      scrapedCount: scrapedProperties.length,
+      properties: scrapedProperties
     });
-
+    
   } catch (error) {
-    console.error('שגיאה בקבלת סטטיסטיקות מערכת:', error);
+    console.error('שגיאה בסקרייפינג:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בקבלת סטטיסטיקות מערכת'
+        message: 'שגיאה בסקרייפינג'
       }
     });
   }
 });
 
-// Get recent activity
-router.get('/activity/recent', authenticateToken, requireAdmin, async (req, res) => {
+// Start continuous scraping
+router.post('/scrape/start', async (req, res) => {
   try {
-    const { limit = 20 } = req.query;
+    const { intervalMinutes = 60 } = req.body;
+    
+    await scrapingService.startContinuousScraping(intervalMinutes);
+    
+    res.json({
+      message: 'סקרייפינג רציף התחיל',
+      intervalMinutes
+    });
+    
+  } catch (error) {
+    console.error('שגיאה בהתחלת סקרייפינג רציף:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בהתחלת סקרייפינג רציף'
+      }
+    });
+  }
+});
 
+// Get scraping status
+router.get('/scrape/status', async (req, res) => {
+  try {
+    const totalProperties = await Property.countDocuments();
+    const hotDealsCount = await Property.countDocuments({ isHotDeal: true });
     const recentProperties = await Property.find()
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit) / 2);
-
-    const recentDeals = await Deal.find()
-      .populate('agentId', 'name')
-      .populate('propertyId', 'address city')
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit) / 2);
-
-    const recentUsers = await User.find()
-      .select('name email role createdAt')
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    res.json({
-      recentProperties,
-      recentDeals,
-      recentUsers
-    });
-
-  } catch (error) {
-    console.error('שגיאה בקבלת פעילות אחרונה:', error);
-    res.status(500).json({
-      error: {
-        message: 'שגיאה בקבלת פעילות אחרונה'
-      }
-    });
-  }
-});
-
-// Get system health
-router.get('/health', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+      .limit(10);
     
-    const memoryUsage = process.memoryUsage();
-    const uptime = process.uptime();
-
     res.json({
-      status: 'OK',
-      database: dbStatus,
-      memory: {
-        rss: Math.round(memoryUsage.rss / 1024 / 1024), // MB
-        heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024), // MB
-        heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) // MB
-      },
-      uptime: Math.round(uptime), // seconds
-      environment: process.env.NODE_ENV
+      totalProperties,
+      hotDealsCount,
+      recentProperties,
+      isScrapingRunning: scrapingService.isRunning
     });
-
+    
   } catch (error) {
-    console.error('שגיאה בבדיקת בריאות המערכת:', error);
+    console.error('שגיאה בקבלת סטטוס סקרייפינג:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בבדיקת בריאות המערכת'
+        message: 'שגיאה בקבלת סטטוס סקרייפינג'
       }
     });
   }
 });
 
-// Update system settings
-router.put('/settings', authenticateToken, requireAdmin, async (req, res) => {
+// Get properties by source
+router.get('/properties/by-source', async (req, res) => {
   try {
-    const { 
-      marketValueThreshold, 
-      hotDealThreshold, 
-      updateIntervalMinutes,
-      emailNotifications 
-    } = req.body;
-
-    // This would typically update environment variables or a settings collection
-    // For now, just return success
-    res.json({
-      message: 'הגדרות מערכת עודכנו בהצלחה',
-      settings: {
-        marketValueThreshold,
-        hotDealThreshold,
-        updateIntervalMinutes,
-        emailNotifications
+    const { source } = req.query;
+    
+    const filter = source ? { sourceWebsite: source } : {};
+    const properties = await Property.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    const stats = await Property.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$sourceWebsite',
+          count: { $sum: 1 },
+          hotDealsCount: {
+            $sum: { $cond: ['$isHotDeal', 1, 0] }
+          },
+          avgPrice: { $avg: '$price' }
+        }
       }
+    ]);
+    
+    res.json({
+      properties,
+      stats
     });
-
+    
   } catch (error) {
-    console.error('שגיאה בעדכון הגדרות מערכת:', error);
+    console.error('שגיאה בקבלת נכסים לפי מקור:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בעדכון הגדרות מערכת'
+        message: 'שגיאה בקבלת נכסים לפי מקור'
       }
     });
   }
 });
 
-// Trigger manual property update
-router.post('/properties/update', authenticateToken, requireAdmin, async (req, res) => {
+// Delete properties by source
+router.delete('/properties/by-source', async (req, res) => {
   try {
-    // This would trigger the property scraping service
-    // For now, just return success
+    const { source } = req.query;
+    
+    if (!source) {
+      return res.status(400).json({
+        error: {
+          message: 'מקור נדרש'
+        }
+      });
+    }
+    
+    const result = await Property.deleteMany({ sourceWebsite: source });
+    
     res.json({
-      message: 'עדכון נכסים הופעל בהצלחה',
-      status: 'running'
+      message: `נמחקו ${result.deletedCount} נכסים מ-${source}`,
+      deletedCount: result.deletedCount
     });
-
+    
   } catch (error) {
-    console.error('שגיאה בהפעלת עדכון נכסים:', error);
+    console.error('שגיאה במחיקת נכסים:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בהפעלת עדכון נכסים'
+        message: 'שגיאה במחיקת נכסים'
       }
     });
   }
 });
 
-// Get system logs
-router.get('/logs', authenticateToken, requireAdmin, async (req, res) => {
+// Update property hot deal status
+router.put('/properties/:propertyId/hot-deal', async (req, res) => {
   try {
-    const { level = 'error', limit = 100 } = req.query;
-
-    // This would typically read from a log file or database
-    // For now, return empty array
+    const { propertyId } = req.params;
+    const { isHotDeal, hotDealScore } = req.body;
+    
+    const property = await Property.findByIdAndUpdate(
+      propertyId,
+      { isHotDeal, hotDealScore },
+      { new: true }
+    );
+    
+    if (!property) {
+      return res.status(404).json({
+        error: {
+          message: 'נכס לא נמצא'
+        }
+      });
+    }
+    
     res.json({
-      logs: [],
-      pagination: {
-        currentPage: 1,
-        totalPages: 0,
-        totalLogs: 0,
-        logsPerPage: parseInt(limit)
-      }
+      message: 'סטטוס עסקה חמה עודכן',
+      property
     });
-
+    
   } catch (error) {
-    console.error('שגיאה בקבלת לוגים:', error);
+    console.error('שגיאה בעדכון סטטוס עסקה חמה:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בקבלת לוגים'
+        message: 'שגיאה בעדכון סטטוס עסקה חמה'
       }
     });
   }

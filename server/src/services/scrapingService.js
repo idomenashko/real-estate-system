@@ -1,455 +1,449 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 const Property = require('../models/Property');
 
 class ScrapingService {
   constructor() {
-    this.sources = {
-      yad2: {
-        baseUrl: 'https://www.yad2.co.il/api/feed/get',
-        searchUrl: 'https://www.yad2.co.il/realestate/forsale',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      },
-      winwin: {
-        baseUrl: 'https://www.winwin.co.il',
-        searchUrl: 'https://www.winwin.co.il/real-estate/sale',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      },
-      madlan: {
-        baseUrl: 'https://www.madlan.co.il',
-        searchUrl: 'https://www.madlan.co.il/real-estate/sale',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      }
-    };
+    this.browser = null;
+    this.isRunning = false;
   }
 
-  // Main scraping function
-  async scrapeAllSources() {
-    console.log('🚀 מתחיל איסוף נתונים מכל המקורות...');
+  async initialize() {
+    if (!this.browser) {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
+  }
+
+  async close() {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+  }
+
+  // Scrape Yad2 properties
+  async scrapeYad2(filters = {}) {
+    const properties = [];
+    const page = await this.browser.newPage();
     
     try {
-      const results = await Promise.allSettled([
-        this.scrapeYad2(),
-        this.scrapeWinWin(),
-        this.scrapeMadlan()
-      ]);
-
-      let totalNewProperties = 0;
-      let totalHotDeals = 0;
-
-      results.forEach((result, index) => {
-        const sourceName = ['Yad2', 'WinWin', 'Madlan'][index];
-        if (result.status === 'fulfilled') {
-          console.log(`✅ ${sourceName}: ${result.value.newProperties} נכסים חדשים, ${result.value.hotDeals} עסקאות חמות`);
-          totalNewProperties += result.value.newProperties;
-          totalHotDeals += result.value.hotDeals;
-        } else {
-          console.log(`❌ ${sourceName}: שגיאה - ${result.reason.message}`);
-        }
-      });
-
-      console.log(`📊 סה"כ: ${totalNewProperties} נכסים חדשים, ${totalHotDeals} עסקאות חמות`);
-      return { totalNewProperties, totalHotDeals };
-    } catch (error) {
-      console.error('שגיאה באיסוף נתונים:', error);
-      throw error;
-    }
-  }
-
-  // Yad2 Scraping
-  async scrapeYad2() {
-    try {
-      console.log('🔍 אוסף נתונים מ-Yad2...');
+      // Set user agent to avoid detection
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
       
-      const properties = [];
-      const cities = ['תל אביב', 'רמת גן', 'חיפה', 'ירושלים', 'באר שבע'];
+      // Build search URL based on filters
+      let searchUrl = 'https://www.yad2.co.il/realestate/forsale';
+      const params = new URLSearchParams();
       
-      for (const city of cities) {
-        const cityProperties = await this.scrapeYad2City(city);
-        properties.push(...cityProperties);
+      if (filters.city) params.append('city', filters.city);
+      if (filters.minPrice) params.append('price', filters.minPrice);
+      if (filters.maxPrice) params.append('price', filters.maxPrice);
+      if (filters.minRooms) params.append('rooms', filters.minRooms);
+      
+      if (params.toString()) {
+        searchUrl += '?' + params.toString();
       }
 
-      const { newProperties, hotDeals } = await this.saveProperties(properties, 'yad2');
-      return { newProperties, hotDeals };
-    } catch (error) {
-      console.error('שגיאה באיסוף מ-Yad2:', error);
-      throw error;
-    }
-  }
-
-  async scrapeYad2City(city) {
-    try {
-      const response = await axios.get(`${this.sources.yad2.baseUrl}`, {
-        params: {
-          city: city,
-          category: 'realestate',
-          subcategory: 'forsale',
-          page: 1,
-          limit: 50
-        },
-        headers: this.sources.yad2.headers,
-        timeout: 10000
-      });
-
-      const properties = [];
-      if (response.data && response.data.feed) {
-        for (const item of response.data.feed) {
-          try {
-            const property = this.parseYad2Property(item, city);
-            if (property) {
-              properties.push(property);
-            }
-          } catch (parseError) {
-            console.error('שגיאה בפרסור נכס Yad2:', parseError);
+      await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+      
+      // Wait for properties to load
+      await page.waitForSelector('.feeditem', { timeout: 10000 });
+      
+      // Extract property data
+      const propertyElements = await page.$$('.feeditem');
+      
+      for (const element of propertyElements.slice(0, 20)) { // Limit to 20 properties
+        try {
+          const propertyData = await this.extractYad2PropertyData(element);
+          if (propertyData) {
+            properties.push(propertyData);
           }
+        } catch (error) {
+          console.error('Error extracting Yad2 property:', error);
         }
       }
-
-      return properties;
+      
     } catch (error) {
-      console.error(`שגיאה באיסוף מ-Yad2 עבור ${city}:`, error);
+      console.error('Error scraping Yad2:', error);
+    } finally {
+      await page.close();
+    }
+    
+    return properties;
+  }
+
+  // Extract property data from Yad2 element
+  async extractYad2PropertyData(element) {
+    try {
+      const title = await element.$eval('.title', el => el.textContent.trim());
+      const price = await element.$eval('.price', el => {
+        const priceText = el.textContent.trim();
+        return parseInt(priceText.replace(/[^\d]/g, ''));
+      });
+      const address = await element.$eval('.address', el => el.textContent.trim());
+      const rooms = await element.$eval('.rooms', el => {
+        const roomsText = el.textContent.trim();
+        return parseFloat(roomsText.replace(/[^\d.]/g, ''));
+      });
+      const size = await element.$eval('.size', el => {
+        const sizeText = el.textContent.trim();
+        return parseInt(sizeText.replace(/[^\d]/g, ''));
+      });
+      const link = await element.$eval('a', el => el.href);
+      
+      // Parse address to extract city and neighborhood
+      const addressParts = address.split(',');
+      const city = addressParts[addressParts.length - 1]?.trim() || '';
+      const neighborhood = addressParts[addressParts.length - 2]?.trim() || '';
+      
+      return {
+        address,
+        city,
+        neighborhood,
+        street: addressParts[0]?.trim() || '',
+        propertyType: this.determinePropertyType(title),
+        rooms,
+        size,
+        price,
+        sourceWebsite: 'yad2',
+        sourceUrl: link,
+        sourceId: this.extractSourceId(link),
+        isHotDeal: this.calculateHotDealScore(price, size, rooms) > 80,
+        hotDealScore: this.calculateHotDealScore(price, size, rooms),
+        status: 'active'
+      };
+    } catch (error) {
+      console.error('Error extracting Yad2 property data:', error);
+      return null;
+    }
+  }
+
+  // Scrape WinWin properties
+  async scrapeWinWin(filters = {}) {
+    const properties = [];
+    const page = await this.browser.newPage();
+    
+    try {
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+      
+      let searchUrl = 'https://www.winwin.co.il/realestate/forsale';
+      const params = new URLSearchParams();
+      
+      if (filters.city) params.append('city', filters.city);
+      if (filters.minPrice) params.append('price', filters.minPrice);
+      if (filters.maxPrice) params.append('price', filters.maxPrice);
+      
+      if (params.toString()) {
+        searchUrl += '?' + params.toString();
+      }
+
+      await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+      await page.waitForSelector('.property-item', { timeout: 10000 });
+      
+      const propertyElements = await page.$$('.property-item');
+      
+      for (const element of propertyElements.slice(0, 20)) {
+        try {
+          const propertyData = await this.extractWinWinPropertyData(element);
+          if (propertyData) {
+            properties.push(propertyData);
+          }
+        } catch (error) {
+          console.error('Error extracting WinWin property:', error);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error scraping WinWin:', error);
+    } finally {
+      await page.close();
+    }
+    
+    return properties;
+  }
+
+  // Extract property data from WinWin element
+  async extractWinWinPropertyData(element) {
+    try {
+      const title = await element.$eval('.title', el => el.textContent.trim());
+      const price = await element.$eval('.price', el => {
+        const priceText = el.textContent.trim();
+        return parseInt(priceText.replace(/[^\d]/g, ''));
+      });
+      const address = await element.$eval('.address', el => el.textContent.trim());
+      const rooms = await element.$eval('.rooms', el => {
+        const roomsText = el.textContent.trim();
+        return parseFloat(roomsText.replace(/[^\d.]/g, ''));
+      });
+      const size = await element.$eval('.size', el => {
+        const sizeText = el.textContent.trim();
+        return parseInt(sizeText.replace(/[^\d]/g, ''));
+      });
+      const link = await element.$eval('a', el => el.href);
+      
+      const addressParts = address.split(',');
+      const city = addressParts[addressParts.length - 1]?.trim() || '';
+      const neighborhood = addressParts[addressParts.length - 2]?.trim() || '';
+      
+      return {
+        address,
+        city,
+        neighborhood,
+        street: addressParts[0]?.trim() || '',
+        propertyType: this.determinePropertyType(title),
+        rooms,
+        size,
+        price,
+        sourceWebsite: 'winwin',
+        sourceUrl: link,
+        sourceId: this.extractSourceId(link),
+        isHotDeal: this.calculateHotDealScore(price, size, rooms) > 80,
+        hotDealScore: this.calculateHotDealScore(price, size, rooms),
+        status: 'active'
+      };
+    } catch (error) {
+      console.error('Error extracting WinWin property data:', error);
+      return null;
+    }
+  }
+
+  // Scrape Madlan properties
+  async scrapeMadlan(filters = {}) {
+    const properties = [];
+    const page = await this.browser.newPage();
+    
+    try {
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+      
+      let searchUrl = 'https://www.madlan.co.il/realestate/forsale';
+      const params = new URLSearchParams();
+      
+      if (filters.city) params.append('city', filters.city);
+      if (filters.minPrice) params.append('price', filters.minPrice);
+      if (filters.maxPrice) params.append('price', filters.maxPrice);
+      
+      if (params.toString()) {
+        searchUrl += '?' + params.toString();
+      }
+
+      await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+      await page.waitForSelector('.property-card', { timeout: 10000 });
+      
+      const propertyElements = await page.$$('.property-card');
+      
+      for (const element of propertyElements.slice(0, 20)) {
+        try {
+          const propertyData = await this.extractMadlanPropertyData(element);
+          if (propertyData) {
+            properties.push(propertyData);
+          }
+        } catch (error) {
+          console.error('Error extracting Madlan property:', error);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error scraping Madlan:', error);
+    } finally {
+      await page.close();
+    }
+    
+    return properties;
+  }
+
+  // Extract property data from Madlan element
+  async extractMadlanPropertyData(element) {
+    try {
+      const title = await element.$eval('.title', el => el.textContent.trim());
+      const price = await element.$eval('.price', el => {
+        const priceText = el.textContent.trim();
+        return parseInt(priceText.replace(/[^\d]/g, ''));
+      });
+      const address = await element.$eval('.address', el => el.textContent.trim());
+      const rooms = await element.$eval('.rooms', el => {
+        const roomsText = el.textContent.trim();
+        return parseFloat(roomsText.replace(/[^\d.]/g, ''));
+      });
+      const size = await element.$eval('.size', el => {
+        const sizeText = el.textContent.trim();
+        return parseInt(sizeText.replace(/[^\d]/g, ''));
+      });
+      const link = await element.$eval('a', el => el.href);
+      
+      const addressParts = address.split(',');
+      const city = addressParts[addressParts.length - 1]?.trim() || '';
+      const neighborhood = addressParts[addressParts.length - 2]?.trim() || '';
+      
+      return {
+        address,
+        city,
+        neighborhood,
+        street: addressParts[0]?.trim() || '',
+        propertyType: this.determinePropertyType(title),
+        rooms,
+        size,
+        price,
+        sourceWebsite: 'madlan',
+        sourceUrl: link,
+        sourceId: this.extractSourceId(link),
+        isHotDeal: this.calculateHotDealScore(price, size, rooms) > 80,
+        hotDealScore: this.calculateHotDealScore(price, size, rooms),
+        status: 'active'
+      };
+    } catch (error) {
+      console.error('Error extracting Madlan property data:', error);
+      return null;
+    }
+  }
+
+  // Main scraping method
+  async scrapeAllWebsites(filters = {}) {
+    if (this.isRunning) {
+      console.log('Scraping already in progress...');
       return [];
     }
-  }
 
-  parseYad2Property(item, city) {
+    this.isRunning = true;
+    const allProperties = [];
+
     try {
-      // Extract price
-      const priceText = item.price || item.price_text || '';
-      const price = this.extractPrice(priceText);
-
-      // Extract rooms
-      const roomsText = item.rooms || item.room_text || '';
-      const rooms = this.extractRooms(roomsText);
-
-      // Extract size
-      const sizeText = item.size || item.size_text || '';
-      const size = this.extractSize(sizeText);
-
-      // Extract address
-      const address = item.address || item.street || '';
-      const neighborhood = item.neighborhood || '';
-
-      if (!price || !rooms || !size || !address) {
-        return null;
-      }
-
-      // Calculate if it's a hot deal
-      const pricePerSquareMeter = Math.round(price / size);
-      const isHotDeal = this.isHotDeal(pricePerSquareMeter, city, neighborhood);
-
-      return {
-        address: `${address}, ${neighborhood}`,
-        city: city,
-        neighborhood: neighborhood,
-        propertyType: this.determinePropertyType(item),
-        rooms: rooms,
-        size: size,
-        price: price,
-        pricePerSquareMeter: pricePerSquareMeter,
-        condition: this.determineCondition(item),
-        sourceWebsite: 'yad2',
-        sourceUrl: item.url || '',
-        sourceId: item.id || '',
-        isHotDeal: isHotDeal,
-        hotDealScore: isHotDeal ? this.calculateHotDealScore(pricePerSquareMeter, city) : 0,
-        contactName: item.contact_name || '',
-        contactPhone: item.contact_phone || '',
-        contactEmail: item.contact_email || '',
-        parking: this.extractBoolean(item.parking),
-        elevator: this.extractBoolean(item.elevator),
-        balcony: this.extractBoolean(item.balcony),
-        garden: this.extractBoolean(item.garden),
-        evictionBuilding: this.extractBoolean(item.eviction_building)
-      };
-    } catch (error) {
-      console.error('שגיאה בפרסור נכס Yad2:', error);
-      return null;
-    }
-  }
-
-  // WinWin Scraping
-  async scrapeWinWin() {
-    try {
-      console.log('🔍 אוסף נתונים מ-WinWin...');
+      await this.initialize();
       
-      const response = await axios.get(this.sources.winwin.searchUrl, {
-        headers: this.sources.winwin.headers,
-        timeout: 10000
-      });
-
-      const $ = cheerio.load(response.data);
-      const properties = [];
-
-      // Parse WinWin HTML structure
-      $('.property-item').each((index, element) => {
-        try {
-          const property = this.parseWinWinProperty($, element);
-          if (property) {
-            properties.push(property);
-          }
-        } catch (parseError) {
-          console.error('שגיאה בפרסור נכס WinWin:', parseError);
-        }
-      });
-
-      const { newProperties, hotDeals } = await this.saveProperties(properties, 'winwin');
-      return { newProperties, hotDeals };
-    } catch (error) {
-      console.error('שגיאה באיסוף מ-WinWin:', error);
-      throw error;
-    }
-  }
-
-  parseWinWinProperty($, element) {
-    try {
-      const priceText = $(element).find('.price').text();
-      const price = this.extractPrice(priceText);
-
-      const roomsText = $(element).find('.rooms').text();
-      const rooms = this.extractRooms(roomsText);
-
-      const sizeText = $(element).find('.size').text();
-      const size = this.extractSize(sizeText);
-
-      const address = $(element).find('.address').text().trim();
-      const city = $(element).find('.city').text().trim();
-
-      if (!price || !rooms || !size || !address) {
-        return null;
-      }
-
-      const pricePerSquareMeter = Math.round(price / size);
-      const isHotDeal = this.isHotDeal(pricePerSquareMeter, city, '');
-
-      return {
-        address: address,
-        city: city,
-        neighborhood: '',
-        propertyType: 'apartment',
-        rooms: rooms,
-        size: size,
-        price: price,
-        pricePerSquareMeter: pricePerSquareMeter,
-        condition: 'good',
-        sourceWebsite: 'winwin',
-        sourceUrl: $(element).find('a').attr('href') || '',
-        sourceId: $(element).attr('data-id') || '',
-        isHotDeal: isHotDeal,
-        hotDealScore: isHotDeal ? this.calculateHotDealScore(pricePerSquareMeter, city) : 0
-      };
-    } catch (error) {
-      console.error('שגיאה בפרסור נכס WinWin:', error);
-      return null;
-    }
-  }
-
-  // Madlan Scraping
-  async scrapeMadlan() {
-    try {
-      console.log('🔍 אוסף נתונים מ-Madlan...');
+      console.log('🔍 מתחיל סקרייפינג נכסים...');
       
-      const response = await axios.get(this.sources.madlan.searchUrl, {
-        headers: this.sources.madlan.headers,
-        timeout: 10000
-      });
+      // Scrape from all websites
+      const [yad2Properties, winwinProperties, madlanProperties] = await Promise.allSettled([
+        this.scrapeYad2(filters),
+        this.scrapeWinWin(filters),
+        this.scrapeMadlan(filters)
+      ]);
 
-      const $ = cheerio.load(response.data);
-      const properties = [];
-
-      // Parse Madlan HTML structure
-      $('.property-card').each((index, element) => {
-        try {
-          const property = this.parseMadlanProperty($, element);
-          if (property) {
-            properties.push(property);
-          }
-        } catch (parseError) {
-          console.error('שגיאה בפרסור נכס Madlan:', parseError);
-        }
-      });
-
-      const { newProperties, hotDeals } = await this.saveProperties(properties, 'madlan');
-      return { newProperties, hotDeals };
-    } catch (error) {
-      console.error('שגיאה באיסוף מ-Madlan:', error);
-      throw error;
-    }
-  }
-
-  parseMadlanProperty($, element) {
-    try {
-      const priceText = $(element).find('.price').text();
-      const price = this.extractPrice(priceText);
-
-      const roomsText = $(element).find('.rooms').text();
-      const rooms = this.extractRooms(roomsText);
-
-      const sizeText = $(element).find('.size').text();
-      const size = this.extractSize(sizeText);
-
-      const address = $(element).find('.address').text().trim();
-      const city = $(element).find('.city').text().trim();
-
-      if (!price || !rooms || !size || !address) {
-        return null;
+      // Combine all properties
+      if (yad2Properties.status === 'fulfilled') {
+        allProperties.push(...yad2Properties.value);
+        console.log(`✅ Yad2: ${yad2Properties.value.length} נכסים`);
+      }
+      
+      if (winwinProperties.status === 'fulfilled') {
+        allProperties.push(...winwinProperties.value);
+        console.log(`✅ WinWin: ${winwinProperties.value.length} נכסים`);
+      }
+      
+      if (madlanProperties.status === 'fulfilled') {
+        allProperties.push(...madlanProperties.value);
+        console.log(`✅ Madlan: ${madlanProperties.value.length} נכסים`);
       }
 
-      const pricePerSquareMeter = Math.round(price / size);
-      const isHotDeal = this.isHotDeal(pricePerSquareMeter, city, '');
-
-      return {
-        address: address,
-        city: city,
-        neighborhood: '',
-        propertyType: 'apartment',
-        rooms: rooms,
-        size: size,
-        price: price,
-        pricePerSquareMeter: pricePerSquareMeter,
-        condition: 'good',
-        sourceWebsite: 'madlan',
-        sourceUrl: $(element).find('a').attr('href') || '',
-        sourceId: $(element).attr('data-id') || '',
-        isHotDeal: isHotDeal,
-        hotDealScore: isHotDeal ? this.calculateHotDealScore(pricePerSquareMeter, city) : 0
-      };
+      // Remove duplicates based on sourceUrl
+      const uniqueProperties = this.removeDuplicates(allProperties);
+      
+      // Save to database
+      const savedProperties = await this.savePropertiesToDatabase(uniqueProperties);
+      
+      console.log(`✅ סך הכל נשמרו ${savedProperties.length} נכסים חדשים`);
+      
+      return savedProperties;
+      
     } catch (error) {
-      console.error('שגיאה בפרסור נכס Madlan:', error);
-      return null;
+      console.error('❌ שגיאה בסקרייפינג:', error);
+      return [];
+    } finally {
+      this.isRunning = false;
+      await this.close();
     }
   }
 
-  // Helper functions
-  extractPrice(priceText) {
-    if (!priceText) return null;
-    
-    const priceMatch = priceText.match(/[\d,]+/);
-    if (priceMatch) {
-      return parseInt(priceMatch[0].replace(/,/g, ''));
-    }
-    return null;
-  }
-
-  extractRooms(roomsText) {
-    if (!roomsText) return null;
-    
-    const roomsMatch = roomsText.match(/(\d+(?:\.\d+)?)/);
-    if (roomsMatch) {
-      return parseFloat(roomsMatch[1]);
-    }
-    return null;
-  }
-
-  extractSize(sizeText) {
-    if (!sizeText) return null;
-    
-    const sizeMatch = sizeText.match(/(\d+)/);
-    if (sizeMatch) {
-      return parseInt(sizeMatch[1]);
-    }
-    return null;
-  }
-
-  determinePropertyType(item) {
-    const typeText = (item.property_type || item.type || '').toLowerCase();
-    
-    if (typeText.includes('penthouse') || typeText.includes('נטהאוס')) return 'penthouse';
-    if (typeText.includes('house') || typeText.includes('בית')) return 'house';
-    if (typeText.includes('garden') || typeText.includes('גן')) return 'garden_apartment';
-    if (typeText.includes('duplex')) return 'duplex';
-    
-    return 'apartment';
-  }
-
-  determineCondition(item) {
-    const conditionText = (item.condition || '').toLowerCase();
-    
-    if (conditionText.includes('חדש') || conditionText.includes('new')) return 'new';
-    if (conditionText.includes('מצוין') || conditionText.includes('excellent')) return 'excellent';
-    if (conditionText.includes('טוב') || conditionText.includes('good')) return 'good';
-    if (conditionText.includes('סביר') || conditionText.includes('fair')) return 'fair';
-    if (conditionText.includes('שיפוץ') || conditionText.includes('renovation')) return 'needs_renovation';
-    
-    return 'good';
-  }
-
-  extractBoolean(value) {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-      const text = value.toLowerCase();
-      return text.includes('כן') || text.includes('yes') || text.includes('true');
-    }
-    return false;
-  }
-
-  // Hot deal detection
-  isHotDeal(pricePerSquareMeter, city, neighborhood) {
-    // Define average prices per square meter for different cities
-    const averagePrices = {
-      'תל אביב': 35000,
-      'רמת גן': 32000,
-      'חיפה': 25000,
-      'ירושלים': 28000,
-      'באר שבע': 18000
-    };
-
-    const averagePrice = averagePrices[city] || 25000;
-    const discountThreshold = 0.85; // 15% below average
-
-    return pricePerSquareMeter <= (averagePrice * discountThreshold);
-  }
-
-  calculateHotDealScore(pricePerSquareMeter, city) {
-    const averagePrices = {
-      'תל אביב': 35000,
-      'רמת גן': 32000,
-      'חיפה': 25000,
-      'ירושלים': 28000,
-      'באר שבע': 18000
-    };
-
-    const averagePrice = averagePrices[city] || 25000;
-    const discount = ((averagePrice - pricePerSquareMeter) / averagePrice) * 100;
-    
-    return Math.min(100, Math.max(0, discount * 10)); // Score 0-100
+  // Remove duplicate properties
+  removeDuplicates(properties) {
+    const seen = new Set();
+    return properties.filter(property => {
+      const key = property.sourceUrl;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 
   // Save properties to database
-  async saveProperties(properties, source) {
-    let newProperties = 0;
-    let hotDeals = 0;
-
-    for (const propertyData of properties) {
+  async savePropertiesToDatabase(properties) {
+    const savedProperties = [];
+    
+    for (const property of properties) {
       try {
         // Check if property already exists
-        const existingProperty = await Property.findOne({
-          sourceWebsite: source,
-          sourceId: propertyData.sourceId
-        });
-
+        const existingProperty = await Property.findOne({ sourceUrl: property.sourceUrl });
+        
         if (!existingProperty) {
-          const property = new Property(propertyData);
-          await property.save();
-          newProperties++;
-
-          if (property.isHotDeal) {
-            hotDeals++;
-            console.log(`🔥 עסקה חמה: ${property.address} - ₪${property.price?.toLocaleString()}`);
-          }
+          const newProperty = new Property(property);
+          await newProperty.save();
+          savedProperties.push(newProperty);
         }
       } catch (error) {
-        console.error('שגיאה בשמירת נכס:', error);
+        console.error('Error saving property:', error);
       }
     }
+    
+    return savedProperties;
+  }
 
-    return { newProperties, hotDeals };
+  // Helper methods
+  determinePropertyType(title) {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('נטהאוס') || titleLower.includes('penthouse')) return 'penthouse';
+    if (titleLower.includes('בית') || titleLower.includes('house')) return 'house';
+    if (titleLower.includes('דירת גן') || titleLower.includes('garden')) return 'garden_apartment';
+    if (titleLower.includes('דופלקס') || titleLower.includes('duplex')) return 'duplex';
+    return 'apartment';
+  }
+
+  extractSourceId(url) {
+    const match = url.match(/\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  calculateHotDealScore(price, size, rooms) {
+    // Simple scoring algorithm
+    const pricePerSqm = price / size;
+    const avgPricePerSqm = 15000; // Average price per sqm in Israel
+    
+    let score = 100;
+    
+    // Price factor (lower price = higher score)
+    if (pricePerSqm < avgPricePerSqm * 0.8) score += 20;
+    else if (pricePerSqm > avgPricePerSqm * 1.2) score -= 20;
+    
+    // Size factor (larger size = higher score)
+    if (size > 100) score += 10;
+    else if (size < 60) score -= 10;
+    
+    // Rooms factor (more rooms = higher score)
+    if (rooms >= 4) score += 10;
+    else if (rooms <= 2) score -= 10;
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  // Start continuous scraping
+  async startContinuousScraping(intervalMinutes = 60) {
+    console.log(`🔄 מתחיל סקרייפינג רציף כל ${intervalMinutes} דקות`);
+    
+    const runScraping = async () => {
+      try {
+        await this.scrapeAllWebsites();
+        console.log(`✅ סקרייפינג הושלם, הבא בעוד ${intervalMinutes} דקות`);
+      } catch (error) {
+        console.error('❌ שגיאה בסקרייפינג רציף:', error);
+      }
+    };
+
+    // Run immediately
+    await runScraping();
+    
+    // Set interval for continuous scraping
+    setInterval(runScraping, intervalMinutes * 60 * 1000);
   }
 }
 
