@@ -8,8 +8,8 @@ require('module').globalPaths.push(serverNodeModules);
 
 const User = require('../server/src/models/User');
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://real-estate-user:Noam1998!@cluster0.zhqlwoy.mongodb.net/real-estate-system?retryWrites=true&w=majority&appName=Cluster0')
+// MongoDB connection - using local MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-system')
 .then(async () => {
   console.log('✅ התחברות למסד הנתונים הצליחה');
 
@@ -22,11 +22,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://real-estate-user:Noam
   }
 
   // Create admin user
-  const hashedPassword = await bcrypt.hash('admin123', 12);
+  // The password will be hashed by the User model's pre-save hook
   const adminUser = new User({
     name: 'מנהל המערכת',
     email: 'admin@real-estate.com',
-    password: hashedPassword,
+    password: '123456', // This will be hashed by the pre-save hook
     phone: '050-1234567',
     role: 'admin',
     commissionPercentage: 3
@@ -35,7 +35,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://real-estate-user:Noam
   await adminUser.save();
   console.log('✅ מנהל נוצר בהצלחה');
   console.log('📧 Email: admin@real-estate.com');
-  console.log('🔑 Password: admin123');
+  console.log('🔑 Password: 123456');
 
   process.exit(0);
 })

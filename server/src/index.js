@@ -8,16 +8,14 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(helmet());
 app.use(compression());
 app.use(morgan('combined'));
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://real-estate-system-eeab7ab.vercel.app', 'https://real-estate-system.vercel.app'] 
-    : ['http://localhost:3000'],
+  origin: ['http://localhost:3000'],
   credentials: true
 }));
 
@@ -36,7 +34,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Database connection
-const mongoUri = process.env.MONGODB_URI || process.env.MONGODB_URI_PROD || 'mongodb+srv://real-estate-user:Noam1998!@cluster0.zhqlwoy.mongodb.net/real-estate-system?retryWrites=true&w=majority&appName=Cluster0';
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-system';
 
 mongoose.connect(mongoUri)
 .then(() => {
@@ -44,10 +42,6 @@ mongoose.connect(mongoUri)
 })
 .catch((error) => {
   console.error('❌ שגיאה בהתחברות למסד הנתונים:', error);
-  // Don't exit in production
-  if (process.env.NODE_ENV === 'development') {
-    process.exit(1);
-  }
 });
 
 // Import routes
@@ -72,7 +66,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: 'development'
   });
 });
 
@@ -95,7 +89,7 @@ app.use((err, req, res, next) => {
   res.status(statusCode).json({
     error: {
       message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+      stack: err.stack
     }
   });
 });
@@ -110,13 +104,11 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`🚀 השרת פועל על פורט ${PORT}`);
-    console.log(`📊 סביבה: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 API זמין ב: http://localhost:${PORT}/api`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`🚀 השרת פועל על פורט ${PORT}`);
+  console.log(`📊 סביבה: development`);
+  console.log(`🔗 API זמין ב: http://localhost:${PORT}/api`);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

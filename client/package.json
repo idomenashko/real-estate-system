@@ -56,5 +56,5 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "https://real-estate-system-68747c3.vercel.app"
+  "proxy": "http://localhost:5001"
 } 
