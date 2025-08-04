@@ -14,7 +14,7 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "MONGODB_URI": "mongodb+srv://username:password@cluster.mongodb.net/real-estate-system",
-    "JWT_SECRET": "your-super-secret-jwt-key-here"
+    "MONGODB_URI": "mongodb+srv://real-estate-user:Noam1998!@cluster0.zhqlwoy.mongodb.net/real-estate-system?retryWrites=true&w=majority&appName=Cluster0",
+    "JWT_SECRET": "your-super-secret-jwt-key-here-make-it-long-and-random-123456789"
   }
 } 
