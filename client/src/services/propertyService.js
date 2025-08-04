@@ -47,7 +47,11 @@ export const propertyService = {
     });
     
     const response = await api.get(`/properties?${params.toString()}`);
-    return response.data;
+    return {
+      properties: response.data.properties || [],
+      totalProperties: response.data.pagination?.totalProperties || 0,
+      pagination: response.data.pagination || {}
+    };
   },
 
   // Get property by ID
@@ -59,19 +63,27 @@ export const propertyService = {
   // Get hot deals
   async getHotDeals(limit = 10) {
     const response = await api.get(`/properties/hot-deals?limit=${limit}`);
-    return response.data.hotDeals;
+    return {
+      hotDeals: response.data.hotDeals || [],
+      totalHotDeals: response.data.totalHotDeals || 0
+    };
   },
 
   // Get available cities
   async getAvailableCities() {
     const response = await api.get('/properties/cities');
-    return response.data;
+    return {
+      cities: response.data.cities || []
+    };
   },
 
   // Get personalized hot deals based on user preferences
   async getPersonalizedHotDeals(limit = 10) {
     const response = await api.get(`/properties/hot-deals/personalized?limit=${limit}`);
-    return response.data;
+    return {
+      personalizedHotDeals: response.data.personalizedHotDeals || [],
+      totalPersonalizedHotDeals: response.data.totalPersonalizedHotDeals || 0
+    };
   },
 
   // Get personalized properties based on user preferences
@@ -84,7 +96,11 @@ export const propertyService = {
     });
     
     const response = await api.get(`/properties/personalized?${params.toString()}`);
-    return response.data;
+    return {
+      personalizedProperties: response.data.personalizedProperties || [],
+      totalPersonalizedProperties: response.data.totalPersonalizedProperties || 0,
+      pagination: response.data.pagination || {}
+    };
   },
 
   // Search properties

@@ -137,7 +137,7 @@ const Dashboard = () => {
               עסקאות חמות מותאמות אישית
             </h2>
             <span className="text-sm text-gray-500">
-              נמצאו {personalizedHotDeals.totalFound} נכסים מתאימים
+              נמצאו {personalizedHotDeals.totalPersonalizedHotDeals || 0} נכסים מתאימים
             </span>
           </div>
           
@@ -205,12 +205,12 @@ const Dashboard = () => {
               נכסים מותאמים אישית
             </h2>
             <span className="text-sm text-gray-500">
-              {personalizedProperties.pagination?.totalProperties || 0} נכסים מתאימים להעדפות שלך
+              {personalizedProperties.totalPersonalizedProperties || 0} נכסים מתאימים להעדפות שלך
             </span>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {personalizedProperties.properties?.slice(0, 8).map((property) => (
+            {personalizedProperties.personalizedProperties?.slice(0, 8).map((property) => (
               <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handlePropertyClick(property._id)}>
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
