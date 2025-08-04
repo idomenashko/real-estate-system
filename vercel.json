@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "client/build",
   "builds": [
     {
       "src": "server/src/index.js",
@@ -17,13 +15,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "server/src/index.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 } 
