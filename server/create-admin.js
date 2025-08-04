@@ -1,12 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-
-// Add server node_modules to path
-const serverNodeModules = path.join(__dirname, '../server/node_modules');
-require('module').globalPaths.push(serverNodeModules);
-
-const User = require('../server/src/models/User');
+const User = require('./src/models/User');
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://real-estate-user:Noam1998!@cluster0.zhqlwoy.mongodb.net/real-estate-system?retryWrites=true&w=majority&appName=Cluster0')
