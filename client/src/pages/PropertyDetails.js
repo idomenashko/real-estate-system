@@ -4,7 +4,7 @@ import { useQuery } from 'react-query';
 import { propertyService } from '../services/propertyService';
 import { dealService } from '../services/dealService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { FireIcon, BuildingOfficeIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { FireIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 const PropertyDetails = () => {

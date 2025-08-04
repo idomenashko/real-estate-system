@@ -8,7 +8,7 @@ import {
   BuildingOfficeIcon, 
   CurrencyDollarIcon, 
   FireIcon,
-  TrendingUpIcon 
+  ArrowTrendingUpIcon 
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
@@ -93,7 +93,7 @@ const Dashboard = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-              <TrendingUpIcon className="h-6 w-6" />
+              <ArrowTrendingUpIcon className="h-6 w-6" />
             </div>
             <div className="mr-4">
               <p className="text-sm font-medium text-gray-600">עמלות מצטברות</p>

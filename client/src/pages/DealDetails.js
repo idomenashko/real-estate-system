@@ -17,7 +17,6 @@ const statusOptions = [
 
 const DealDetails = () => {
   const { dealId } = useParams();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery(['deal', dealId], () => dealService.getDeal(dealId));
