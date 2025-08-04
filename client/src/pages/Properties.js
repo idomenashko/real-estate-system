@@ -3,7 +3,7 @@ import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { propertyService } from '../services/propertyService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MagnifyingGlassIcon, FireIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, FireIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 const Properties = () => {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ const Properties = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [availableCities, setAvailableCities] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Get available cities for dropdown
   const { data: citiesData } = useQuery(
@@ -28,14 +29,21 @@ const Properties = () => {
     { staleTime: 5 * 60 * 1000 } // 5 minutes
   );
 
-  // Get properties with filters
+  // Get properties with dynamic search
   const { data: propertiesData, isLoading, refetch } = useQuery(
     ['properties', filters, searchQuery],
-    () => propertyService.getProperties({ ...filters, search: searchQuery }),
+    () => propertyService.searchPropertiesDynamic({ ...filters, search: searchQuery }),
     { 
       staleTime: 30 * 1000, // 30 seconds
       refetchOnWindowFocus: false
     }
+  );
+
+  // Get scraping status
+  const { data: scrapingStatus } = useQuery(
+    'scrapingStatus',
+    propertyService.getScrapingStatus,
+    { refetchInterval: 10000 } // Refresh every 10 seconds
   );
 
   // Update available cities when data is loaded
@@ -56,6 +64,18 @@ const Properties = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     refetch();
+  };
+
+  const handleForceRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await propertyService.autoScrapeProperties({ ...filters, search: searchQuery });
+      refetch();
+    } catch (error) {
+      console.error('Error refreshing properties:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const clearFilters = () => {
@@ -96,6 +116,32 @@ const Properties = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">נכסים</h1>
         <p className="text-gray-600">חפשו וסננו נכסים לפי העדפותיכם</p>
+        
+        {/* Refresh message */}
+        {propertiesData?.message && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-800 text-sm">{propertiesData.message}</p>
+          </div>
+        )}
+        
+        {/* Scraping status */}
+        {scrapingStatus?.isScrapingRunning && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-800 text-sm flex items-center">
+              <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
+              סקרייפינג פעיל - מחפש נכסים חדשים...
+            </p>
+          </div>
+        )}
+        
+        {/* New properties notification */}
+        {propertiesData?.totalProperties > 0 && (
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              נמצאו {propertiesData.totalProperties} נכסים מתאימים לחיפוש שלך
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -233,6 +279,14 @@ const Properties = () => {
               className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
             >
               נקה סינון
+            </button>
+            <button
+              onClick={handleForceRefresh}
+              disabled={isRefreshing}
+              className="mr-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ArrowPathIcon className={`w-4 h-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'מחפש נכסים...' : 'רענן נכסים'}
             </button>
           </div>
         </div>

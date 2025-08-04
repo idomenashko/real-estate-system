@@ -155,5 +155,84 @@ export const propertyService = {
   async getSimilarProperties(propertyId, limit = 5) {
     const response = await api.get(`/properties/${propertyId}/similar?limit=${limit}`);
     return response.data;
+  },
+
+  // Dynamic property search with automatic scraping
+  async searchPropertiesDynamic(filters = {}) {
+    const params = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined && filters[key] !== '') {
+        params.append(key, filters[key]);
+      }
+    });
+    
+    const response = await api.get(`/properties/search?${params.toString()}`);
+    return {
+      properties: response.data.properties || [],
+      totalProperties: response.data.pagination?.totalProperties || 0,
+      pagination: response.data.pagination || {},
+      message: response.data.message || null
+    };
+  },
+
+  // Force refresh properties with new scraping
+  async forceRefreshProperties(filters = {}) {
+    const params = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined && filters[key] !== '') {
+        params.append(key, filters[key]);
+      }
+    });
+    params.append('forceRefresh', 'true');
+    
+    const response = await api.get(`/properties/search?${params.toString()}`);
+    return {
+      properties: response.data.properties || [],
+      totalProperties: response.data.pagination?.totalProperties || 0,
+      pagination: response.data.pagination || {},
+      message: response.data.message || null
+    };
+  },
+
+  // Manual scraping
+  async scrapeProperties(filters = {}) {
+    const response = await api.post('/properties/scrape', { filters });
+    return response.data;
+  },
+
+  // Get scraping status
+  async getScrapingStatus() {
+    const response = await api.get('/properties/scrape/status');
+    return response.data;
+  },
+
+  // Auto scraping
+  async autoScrapeProperties(filters = {}) {
+    const response = await api.post('/properties/scrape/auto', { filters });
+    return response.data;
+  },
+
+  // Scrape properties by city
+  async scrapePropertiesByCity(city, filters = {}) {
+    const response = await api.post(`/properties/scrape/city/${encodeURIComponent(city)}`, { filters });
+    return response.data;
+  },
+
+  // Scrape properties by price range
+  async scrapePropertiesByPriceRange(minPrice, maxPrice, filters = {}) {
+    const response = await api.post('/properties/scrape/price-range', { minPrice, maxPrice, filters });
+    return response.data;
+  },
+
+  // Scrape properties by room count
+  async scrapePropertiesByRooms(minRooms, maxRooms, filters = {}) {
+    const response = await api.post('/properties/scrape/rooms', { minRooms, maxRooms, filters });
+    return response.data;
+  },
+
+  // Scrape properties by property type
+  async scrapePropertiesByType(propertyType, filters = {}) {
+    const response = await api.post('/properties/scrape/property-type', { propertyType, filters });
+    return response.data;
   }
 }; 

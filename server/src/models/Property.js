@@ -2,9 +2,13 @@ const mongoose = require('mongoose');
 
 const propertySchema = new mongoose.Schema({
   // Basic Information
-  address: {
+  title: {
     type: String,
     required: true,
+    trim: true
+  },
+  address: {
+    type: String,
     trim: true
   },
   city: {
@@ -14,7 +18,6 @@ const propertySchema = new mongoose.Schema({
   },
   neighborhood: {
     type: String,
-    required: true,
     trim: true
   },
   street: {
@@ -29,7 +32,7 @@ const propertySchema = new mongoose.Schema({
   // Property Details
   propertyType: {
     type: String,
-    enum: ['apartment', 'house', 'penthouse', 'garden_apartment', 'duplex', 'land'],
+    enum: ['apartment', 'house', 'penthouse', 'garden_apartment', 'duplex', 'land', 'roof'],
     required: true
   },
   rooms: {
@@ -116,14 +119,17 @@ const propertySchema = new mongoose.Schema({
   },
   
   // Source Information
-  sourceWebsite: {
+  source: {
     type: String,
     required: true,
+    enum: ['Yad2', 'WinWin', 'Madlan', 'other']
+  },
+  sourceWebsite: {
+    type: String,
     enum: ['yad2', 'winwin', 'madlan', 'other']
   },
   sourceUrl: {
     type: String,
-    required: true,
     trim: true
   },
   sourceId: {
@@ -139,7 +145,7 @@ const propertySchema = new mongoose.Schema({
   hotDealScore: {
     type: Number,
     min: 0,
-    max: 100
+    max: 10
   },
   marketAnalysis: {
     averagePriceInArea: {
@@ -205,7 +211,7 @@ const propertySchema = new mongoose.Schema({
 propertySchema.index({ city: 1, neighborhood: 1 });
 propertySchema.index({ price: 1 });
 propertySchema.index({ isHotDeal: 1 });
-propertySchema.index({ sourceWebsite: 1, sourceId: 1 }, { unique: true });
+propertySchema.index({ source: 1, sourceId: 1 }, { unique: true });
 propertySchema.index({ createdAt: -1 });
 
 // Calculate price per square meter
@@ -218,12 +224,20 @@ propertySchema.pre('save', function(next) {
     this.discountPercentage = Math.round(((this.estimatedMarketValue - this.price) / this.estimatedMarketValue) * 100);
   }
   
+  // Set sourceWebsite based on source
+  if (this.source && !this.sourceWebsite) {
+    this.sourceWebsite = this.source.toLowerCase();
+  }
+  
   next();
 });
 
 // Virtual for full address
 propertySchema.virtual('fullAddress').get(function() {
-  return `${this.street} ${this.streetNumber}, ${this.neighborhood}, ${this.city}`;
+  if (this.address) {
+    return this.address;
+  }
+  return `${this.street || ''} ${this.streetNumber || ''}, ${this.neighborhood || ''}, ${this.city || ''}`.trim();
 });
 
 // Method to check if property is still available

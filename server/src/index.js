@@ -22,7 +22,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
   message: {
     error: 'יותר מדי בקשות, נסה שוב מאוחר יותר'
   }
@@ -124,5 +124,14 @@ process.on('SIGINT', () => {
   console.log('✅ חיבור למסד הנתונים נסגר');
   process.exit(0);
 });
+
+// Start automatic scraping every 30 minutes
+const scrapingService = require('./services/scrapingService');
+
+// Start continuous scraping after 5 minutes
+setTimeout(() => {
+  console.log('🔄 מתחיל סקרייפינג אוטומטי כל 30 דקות...');
+  scrapingService.startContinuousScraping(30);
+}, 5 * 60 * 1000);
 
 module.exports = app; 
