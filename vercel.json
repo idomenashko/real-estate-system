@@ -11,5 +11,10 @@
       "src": "/(.*)",
       "dest": "/server/src/index.js"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "MONGODB_URI": "mongodb+srv://username:password@cluster.mongodb.net/real-estate-system",
+    "JWT_SECRET": "your-super-secret-jwt-key-here"
+  }
 } 

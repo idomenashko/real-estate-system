@@ -36,16 +36,16 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-system', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-system')
 .then(() => {
   console.log('✅ התחברות למסד הנתונים הצליחה');
 })
 .catch((error) => {
   console.error('❌ שגיאה בהתחברות למסד הנתונים:', error);
-  process.exit(1);
+  // Don't exit in production
+  if (process.env.NODE_ENV === 'development') {
+    process.exit(1);
+  }
 });
 
 // Import routes
@@ -108,11 +108,13 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 השרת פועל על פורט ${PORT}`);
-  console.log(`📊 סביבה: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 API זמין ב: http://localhost:${PORT}/api`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 השרת פועל על פורט ${PORT}`);
+    console.log(`📊 סביבה: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 API זמין ב: http://localhost:${PORT}/api`);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
