@@ -16,7 +16,7 @@ app.use(compression());
 app.use(morgan('combined'));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.com'] 
+    ? ['https://real-estate-system-eeab7ab.vercel.app', 'https://real-estate-system.vercel.app'] 
     : ['http://localhost:3000'],
   credentials: true
 }));
@@ -36,7 +36,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || process.env.MONGODB_URI_PROD || 'mongodb://localhost:27017/real-estate-system')
+const mongoUri = process.env.MONGODB_URI || process.env.MONGODB_URI_PROD || 'mongodb+srv://real-estate-user:Noam1998!@cluster0.zhqlwoy.mongodb.net/real-estate-system?retryWrites=true&w=majority&appName=Cluster0';
+
+mongoose.connect(mongoUri)
 .then(() => {
   console.log('✅ התחברות למסד הנתונים הצליחה');
 })
@@ -70,7 +72,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 

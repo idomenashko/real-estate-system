@@ -44,7 +44,7 @@ router.post('/register', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024",
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -114,7 +114,7 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024",
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -147,7 +147,7 @@ router.get('/me', async (req, res) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024");
     const user = await User.findById(decoded.userId);
 
     if (!user) {
@@ -201,7 +201,7 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024");
     const user = await User.findById(decoded.userId);
 
     if (!user || !user.isActive) {
@@ -215,7 +215,7 @@ router.post('/refresh', async (req, res) => {
     // Generate new token
     const newToken = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024",
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 

@@ -15,7 +15,7 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024" || 'real-estate-jwt-secret-key-2024');
     const user = await User.findById(decoded.userId);
 
     if (!user) {
@@ -154,7 +154,7 @@ const optionalAuth = async (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "real-estate-jwt-secret-key-2024");
     const user = await User.findById(decoded.userId);
 
     if (user && user.isActive) {
