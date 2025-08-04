@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
@@ -9,10 +9,43 @@ const Profile = () => {
     email: user?.email || '',
     phone: user?.phone || ''
   });
-  const [preferences, setPreferences] = useState(user?.preferences || {});
+  const [preferences, setPreferences] = useState({
+    cities: [],
+    neighborhoods: [],
+    priceRange: {
+      min: 0,
+      max: 10000000
+    },
+    propertyTypes: [],
+    minRooms: 1,
+    maxRooms: 10,
+    minSize: 0,
+    maxSize: 1000,
+    includeEvictionBuilding: true
+  });
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Initialize preferences from user data
+  useEffect(() => {
+    if (user?.preferences) {
+      setPreferences({
+        cities: user.preferences.cities || [],
+        neighborhoods: user.preferences.neighborhoods || [],
+        priceRange: {
+          min: user.preferences.priceRange?.min || 0,
+          max: user.preferences.priceRange?.max || 10000000
+        },
+        propertyTypes: user.preferences.propertyTypes || [],
+        minRooms: user.preferences.minRooms || 1,
+        maxRooms: user.preferences.maxRooms || 10,
+        minSize: user.preferences.minSize || 0,
+        maxSize: user.preferences.maxSize || 1000,
+        includeEvictionBuilding: user.preferences.includeEvictionBuilding !== false
+      });
+    }
+  }, [user]);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -20,8 +53,30 @@ const Profile = () => {
   };
 
   const handlePreferencesChange = (e) => {
-    const { name, value } = e.target;
-    setPreferences(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    
+    if (name === 'cities' || name === 'neighborhoods') {
+      // Convert comma-separated string to array
+      const array = value.split(',').map(item => item.trim()).filter(item => item);
+      setPreferences(prev => ({ ...prev, [name]: array }));
+    } else if (name === 'minPrice' || name === 'maxPrice') {
+      // Handle price range
+      setPreferences(prev => ({
+        ...prev,
+        priceRange: {
+          ...prev.priceRange,
+          [name === 'minPrice' ? 'min' : 'max']: parseInt(value) || 0
+        }
+      }));
+    } else if (name === 'propertyTypes') {
+      // Handle property types as array
+      const types = value.split(',').map(type => type.trim()).filter(type => type);
+      setPreferences(prev => ({ ...prev, propertyTypes: types }));
+    } else if (type === 'checkbox') {
+      setPreferences(prev => ({ ...prev, [name]: checked }));
+    } else {
+      setPreferences(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleProfileSubmit = async (e) => {
@@ -30,8 +85,8 @@ const Profile = () => {
     try {
       await updateProfile(profileData);
       toast.success('הפרופיל עודכן בהצלחה');
-    } catch {
-      toast.error('שגיאה בעדכון פרופיל');
+    } catch (error) {
+      toast.error(error.error || 'שגיאה בעדכון פרופיל');
     } finally {
       setLoading(false);
     }
@@ -43,8 +98,8 @@ const Profile = () => {
     try {
       await updatePreferences(preferences);
       toast.success('העדפות עודכנו בהצלחה');
-    } catch {
-      toast.error('שגיאה בעדכון העדפות');
+    } catch (error) {
+      toast.error(error.error || 'שגיאה בעדכון העדפות');
     } finally {
       setLoading(false);
     }
@@ -62,8 +117,8 @@ const Profile = () => {
       toast.success('הסיסמה שונתה בהצלחה');
       setCurrentPassword('');
       setNewPassword('');
-    } catch {
-      toast.error('שגיאה בשינוי סיסמה');
+    } catch (error) {
+      toast.error(error.error || 'שגיאה בשינוי סיסמה');
     } finally {
       setLoading(false);
     }
@@ -130,7 +185,7 @@ const Profile = () => {
             <input
               type="text"
               name="cities"
-              value={preferences.cities || ''}
+              value={preferences.cities.join(', ')}
               onChange={handlePreferencesChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               placeholder="תל אביב, רמת גן, חיפה..."
@@ -141,7 +196,7 @@ const Profile = () => {
             <input
               type="text"
               name="neighborhoods"
-              value={preferences.neighborhoods || ''}
+              value={preferences.neighborhoods.join(', ')}
               onChange={handlePreferencesChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               placeholder="מרכז, נווה צדק..."
@@ -153,7 +208,7 @@ const Profile = () => {
               <input
                 type="number"
                 name="minPrice"
-                value={preferences.minPrice || ''}
+                value={preferences.priceRange.min}
                 onChange={handlePreferencesChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 placeholder="₪"
@@ -164,12 +219,61 @@ const Profile = () => {
               <input
                 type="number"
                 name="maxPrice"
-                value={preferences.maxPrice || ''}
+                value={preferences.priceRange.max}
                 onChange={handlePreferencesChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 placeholder="₪"
               />
             </div>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">חדרים מינימלי</label>
+              <input
+                type="number"
+                name="minRooms"
+                value={preferences.minRooms}
+                onChange={handlePreferencesChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                min="1"
+                max="10"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">חדרים מקסימלי</label>
+              <input
+                type="number"
+                name="maxRooms"
+                value={preferences.maxRooms}
+                onChange={handlePreferencesChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                min="1"
+                max="10"
+              />
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">סוגי נכסים מועדפים (מופרד בפסיקים)</label>
+            <input
+              type="text"
+              name="propertyTypes"
+              value={preferences.propertyTypes.join(', ')}
+              onChange={handlePreferencesChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              placeholder="apartment, house, penthouse..."
+            />
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="includeEvictionBuilding"
+                checked={preferences.includeEvictionBuilding}
+                onChange={handlePreferencesChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="mr-2 text-sm font-medium text-gray-700">כלול נכסי פינוי בינוי</span>
+            </label>
           </div>
           <button
             type="submit"

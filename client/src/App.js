@@ -2,13 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
-
-// Components
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import LoadingSpinner from './components/LoadingSpinner';
-
-// Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -18,11 +14,6 @@ import Deals from './pages/Deals';
 import DealDetails from './pages/DealDetails';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
-
-// Context
-import { AuthProvider, useAuth } from './context/AuthContext';
-
-// Styles
 import './styles/App.css';
 
 // Create a client
@@ -40,7 +31,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <div className="flex items-center justify-center min-h-screen">טוען...</div>;
   }
 
   if (!user) {
@@ -54,21 +45,18 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   return children;
 };
 
-// App Component
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
-          <div className="App">
+          <div className="min-h-screen bg-gray-50">
             <Navbar />
-            <main className="main-content">
+            <main className="flex-1">
               <Routes>
-                {/* Public Routes */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                
-                {/* Protected Routes */}
                 <Route 
                   path="/dashboard" 
                   element={
@@ -77,7 +65,6 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
                 <Route 
                   path="/properties" 
                   element={
@@ -86,7 +73,6 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
                 <Route 
                   path="/properties/:propertyId" 
                   element={
@@ -95,7 +81,6 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
                 <Route 
                   path="/deals" 
                   element={
@@ -104,7 +89,6 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
                 <Route 
                   path="/deals/:dealId" 
                   element={
@@ -113,7 +97,6 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
                 <Route 
                   path="/profile" 
                   element={
@@ -122,29 +105,19 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                
-                {/* Admin Routes */}
                 <Route 
                   path="/admin" 
                   element={
-                    <ProtectedRoute requireAdmin>
+                    <ProtectedRoute requireAdmin={true}>
                       <AdminDashboard />
                     </ProtectedRoute>
                   } 
                 />
-                
-                {/* Default Route */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                
-                {/* 404 Route */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </main>
             <Footer />
-            
-            {/* Toast Notifications */}
-            <Toaster
-              position="top-right"
+            <Toaster 
+              position="top-center"
               toastOptions={{
                 duration: 4000,
                 style: {
@@ -154,14 +127,14 @@ function App() {
                 success: {
                   duration: 3000,
                   iconTheme: {
-                    primary: '#4ade80',
+                    primary: '#10B981',
                     secondary: '#fff',
                   },
                 },
                 error: {
                   duration: 5000,
                   iconTheme: {
-                    primary: '#ef4444',
+                    primary: '#EF4444',
                     secondary: '#fff',
                   },
                 },

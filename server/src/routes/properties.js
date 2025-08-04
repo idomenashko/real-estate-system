@@ -365,27 +365,21 @@ router.get('/stats/overview', optionalAuth, async (req, res) => {
 // Get properties by city - MUST COME BEFORE /:propertyId
 router.get('/city/:city', optionalAuth, async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
-    const city = req.params.city;
+    const { city } = req.params;
+    const { page = 1, limit = 10 } = req.query;
 
-    const properties = await Property.find({
-      city: new RegExp(city, 'i'),
-      status: 'active'
-    })
-    .sort({ createdAt: -1 })
-    .limit(parseInt(limit))
-    .skip((parseInt(page) - 1) * parseInt(limit));
+    const properties = await Property.find({ city: new RegExp(city, 'i') })
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
 
-    const total = await Property.countDocuments({
-      city: new RegExp(city, 'i'),
-      status: 'active'
-    });
+    const total = await Property.countDocuments({ city: new RegExp(city, 'i') });
 
     res.json({
       properties,
       pagination: {
         currentPage: parseInt(page),
-        totalPages: Math.ceil(total / parseInt(limit)),
+        totalPages: Math.ceil(total / limit),
         totalProperties: total,
         propertiesPerPage: parseInt(limit)
       }
@@ -396,6 +390,23 @@ router.get('/city/:city', optionalAuth, async (req, res) => {
     res.status(500).json({
       error: {
         message: 'שגיאה בקבלת נכסים לפי עיר'
+      }
+    });
+  }
+});
+
+// Get available cities - MUST COME BEFORE /:propertyId
+router.get('/cities', optionalAuth, async (req, res) => {
+  try {
+    const cities = await Property.distinct('city');
+    res.json({
+      cities: cities.filter(city => city).sort()
+    });
+  } catch (error) {
+    console.error('שגיאה בקבלת ערים:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בקבלת ערים'
       }
     });
   }

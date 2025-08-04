@@ -62,6 +62,12 @@ export const propertyService = {
     return response.data.hotDeals;
   },
 
+  // Get available cities
+  async getAvailableCities() {
+    const response = await api.get('/properties/cities');
+    return response.data;
+  },
+
   // Get personalized hot deals based on user preferences
   async getPersonalizedHotDeals(limit = 10) {
     const response = await api.get(`/properties/hot-deals/personalized?limit=${limit}`);

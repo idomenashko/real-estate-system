@@ -91,8 +91,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('שגיאה בעדכון פרופיל:', error);
-      return { 
-        success: false, 
+      throw { 
         error: error.response?.data?.error?.message || 'שגיאה בעדכון פרופיל' 
       };
     }
@@ -106,8 +105,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('שגיאה בעדכון העדפות:', error);
-      return { 
-        success: false, 
+      throw { 
         error: error.response?.data?.error?.message || 'שגיאה בעדכון העדפות' 
       };
     }
@@ -120,8 +118,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('שגיאה בשינוי סיסמה:', error);
-      return { 
-        success: false, 
+      throw { 
         error: error.response?.data?.error?.message || 'שגיאה בשינוי סיסמה' 
       };
     }

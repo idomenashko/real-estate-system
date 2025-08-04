@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import { propertyService } from '../services/propertyService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, FireIcon } from '@heroicons/react/24/outline';
 
 const Properties = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({
     city: '',
     neighborhood: '',
@@ -17,11 +19,31 @@ const Properties = () => {
   });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [availableCities, setAvailableCities] = useState([]);
 
-  const { data: propertiesData, isLoading } = useQuery(
-    ['properties', filters],
-    () => propertyService.getProperties(filters)
+  // Get available cities for dropdown
+  const { data: citiesData } = useQuery(
+    ['cities'],
+    () => propertyService.getAvailableCities(),
+    { staleTime: 5 * 60 * 1000 } // 5 minutes
   );
+
+  // Get properties with filters
+  const { data: propertiesData, isLoading, refetch } = useQuery(
+    ['properties', filters, searchQuery],
+    () => propertyService.getProperties({ ...filters, search: searchQuery }),
+    { 
+      staleTime: 30 * 1000, // 30 seconds
+      refetchOnWindowFocus: false
+    }
+  );
+
+  // Update available cities when data is loaded
+  useEffect(() => {
+    if (citiesData?.cities) {
+      setAvailableCities(citiesData.cities);
+    }
+  }, [citiesData]);
 
   const handleFilterChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -33,7 +55,7 @@ const Properties = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    // Implement search functionality
+    refetch();
   };
 
   const clearFilters = () => {
@@ -47,6 +69,22 @@ const Properties = () => {
       propertyType: '',
       isHotDeal: false
     });
+    setSearchQuery('');
+  };
+
+  const handlePropertyClick = (propertyId) => {
+    navigate(`/properties/${propertyId}`);
+  };
+
+  const formatPrice = (price) => {
+    if (!price) return 'לא צוין';
+    return `₪${price.toLocaleString()}`;
+  };
+
+  const formatPricePerSqm = (price, size) => {
+    if (!price || !size) return '';
+    const pricePerSqm = Math.round(price / size);
+    return `₪${pricePerSqm.toLocaleString()}/מ"ר`;
   };
 
   if (isLoading) {
@@ -74,6 +112,12 @@ const Properties = () => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <button
+                type="submit"
+                className="absolute right-2 top-2 px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              >
+                חפש
+              </button>
             </div>
           </form>
 
@@ -81,14 +125,17 @@ const Properties = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">עיר</label>
-              <input
-                type="text"
+              <select
                 name="city"
                 value={filters.city}
                 onChange={handleFilterChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="הכנס עיר"
-              />
+              >
+                <option value="">כל הערים</option>
+                {availableCities.map((city) => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -202,9 +249,17 @@ const Properties = () => {
           {propertiesData?.properties && propertiesData.properties.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {propertiesData.properties.map((property) => (
-                <div key={property._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
+                <div key={property._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handlePropertyClick(property._id)}>
                   <div className="mb-4">
-                    <h3 className="font-semibold text-gray-900 mb-1">{property.address}</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900">{property.address}</h3>
+                      {property.isHotDeal && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <FireIcon className="w-3 h-3 mr-1" />
+                          עסקה חמה
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">{property.city}, {property.neighborhood}</p>
                   </div>
                   
@@ -213,21 +268,22 @@ const Properties = () => {
                       <span>{property.rooms} חדרים</span>
                       <span className="mx-2">•</span>
                       <span>{property.size} מ"ר</span>
+                      {property.floor && (
+                        <>
+                          <span className="mx-2">•</span>
+                          <span>קומה {property.floor}</span>
+                        </>
+                      )}
                     </div>
-                    {property.isHotDeal && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        עסקה חמה
-                      </span>
-                    )}
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-lg font-bold text-gray-900">
-                        ₪{property.price?.toLocaleString()}
+                        {formatPrice(property.price)}
                       </p>
                       <p className="text-sm text-gray-500">
-                        ₪{property.pricePerSquareMeter?.toLocaleString()}/מ"ר
+                        {formatPricePerSqm(property.price, property.size)}
                       </p>
                     </div>
                     <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
