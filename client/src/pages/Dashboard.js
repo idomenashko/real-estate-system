@@ -8,7 +8,9 @@ import {
   BuildingOfficeIcon, 
   CurrencyDollarIcon, 
   FireIcon,
-  ArrowTrendingUpIcon 
+  ArrowTrendingUpIcon,
+  UserIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline';
 
 const Dashboard = () => {
@@ -20,9 +22,24 @@ const Dashboard = () => {
     propertyService.getPropertyStats
   );
 
-  const { data: hotDeals, isLoading: loadingHotDeals } = useQuery(
-    'hotDeals',
-    () => propertyService.getHotDeals(5)
+  // Fetch personalized hot deals based on user preferences
+  const { data: personalizedHotDeals, isLoading: loadingPersonalizedHotDeals } = useQuery(
+    'personalizedHotDeals',
+    () => propertyService.getPersonalizedHotDeals(5),
+    {
+      enabled: !!user, // Only fetch if user is logged in
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    }
+  );
+
+  // Fetch personalized properties
+  const { data: personalizedProperties, isLoading: loadingPersonalizedProperties } = useQuery(
+    'personalizedProperties',
+    () => propertyService.getPersonalizedProperties({ includeHotDeals: true, limit: 8 }),
+    {
+      enabled: !!user, // Only fetch if user is logged in
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    }
   );
 
   const { data: dealStats, isLoading: loadingDealStats } = useQuery(
@@ -30,7 +47,7 @@ const Dashboard = () => {
     dealService.getDealStats
   );
 
-  if (loadingStats || loadingHotDeals || loadingDealStats) {
+  if (loadingStats || loadingPersonalizedHotDeals || loadingPersonalizedProperties || loadingDealStats) {
     return <LoadingSpinner />;
   }
 
@@ -98,78 +115,161 @@ const Dashboard = () => {
             <div className="mr-4">
               <p className="text-sm font-medium text-gray-600">עמלות מצטברות</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₪{dealStats?.totalCommission?.toLocaleString() || 0}
+                ₪{dealStats?.totalCommissions?.toLocaleString() || 0}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Hot Deals Section */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">עסקאות חמות</h2>
-        </div>
-        <div className="p-6">
-          {hotDeals && hotDeals.length > 0 ? (
-            <div className="space-y-4">
-              {hotDeals.map((property) => (
-                <div key={property._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start">
+      {/* Personalized Hot Deals Section */}
+      {user && personalizedHotDeals && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <UserIcon className="h-6 w-6 mr-2 text-red-500" />
+              עסקאות חמות מותאמות אישית
+            </h2>
+            <span className="text-sm text-gray-500">
+              נמצאו {personalizedHotDeals.totalFound} נכסים מתאימים
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {personalizedHotDeals.personalizedHotDeals?.slice(0, 6).map((property) => (
+              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                      {property.address}
+                    </h3>
+                    {property.isHotDeal && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <FireIcon className="h-4 w-4 mr-1" />
+                        חם
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center text-sm text-gray-600 mb-3">
+                    <MapPinIcon className="h-4 w-4 mr-1" />
+                    {property.city}, {property.neighborhood}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{property.address}</h3>
-                      <p className="text-sm text-gray-600">{property.city}, {property.neighborhood}</p>
-                      <div className="flex items-center mt-2 space-x-4 space-x-reverse">
-                        <span className="text-sm text-gray-500">{property.rooms} חדרים</span>
-                        <span className="text-sm text-gray-500">{property.size} מ"ר</span>
-                        {property.isHotDeal && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            <FireIcon className="h-3 w-3 ml-1" />
-                            עסקה חמה
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-sm text-gray-500">חדרים</p>
+                      <p className="font-semibold">{property.rooms}</p>
                     </div>
-                    <div className="text-left">
-                      <p className="text-lg font-bold text-gray-900">
-                        ₪{property.price?.toLocaleString()}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        ₪{property.pricePerSquareMeter?.toLocaleString()}/מ"ר
-                      </p>
+                    <div>
+                      <p className="text-sm text-gray-500">גודל</p>
+                      <p className="font-semibold">{property.size} מ"ר</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">קומה</p>
+                      <p className="font-semibold">{property.floor}/{property.totalFloors}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">מחיר</p>
+                      <p className="font-semibold text-green-600">₪{property.price.toLocaleString()}</p>
                     </div>
                   </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-500">
+                      ציון: {property.hotDealScore}/100
+                    </div>
+                    <button className="btn-primary text-sm">
+                      פרטים נוספים
+                    </button>
+                  </div>
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Personalized Properties Section */}
+      {user && personalizedProperties && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <UserIcon className="h-6 w-6 mr-2 text-blue-500" />
+              נכסים מותאמים אישית
+            </h2>
+            <span className="text-sm text-gray-500">
+              {personalizedProperties.pagination?.totalProperties || 0} נכסים מתאימים להעדפות שלך
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {personalizedProperties.properties?.slice(0, 8).map((property) => (
+              <div key={property._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">
+                      {property.address}
+                    </h3>
+                    {property.isHotDeal && (
+                      <span className="inline-flex items-center px-1 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <FireIcon className="h-3 w-3 mr-1" />
+                        חם
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="text-xs text-gray-600 mb-2">
+                    {property.city}, {property.neighborhood}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                      <p className="text-xs text-gray-500">חדרים</p>
+                      <p className="text-sm font-semibold">{property.rooms}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">מחיר</p>
+                      <p className="text-sm font-semibold text-green-600">₪{property.price.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  
+                  <button className="w-full btn-primary text-xs">
+                    צפה בפרטים
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* User Preferences Summary */}
+      {user && user.preferences && (
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">העדפות החיפוש שלך</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-600">טווח מחירים</p>
+              <p className="text-sm text-gray-900">
+                ₪{user.preferences.priceRange?.min?.toLocaleString()} - ₪{user.preferences.priceRange?.max?.toLocaleString()}
+              </p>
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">אין עסקאות חמות כרגע</p>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Properties */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">נכסים אחרונים</h2>
-          </div>
-          <div className="p-6">
-            <p className="text-gray-500 text-center py-8">אין נכסים אחרונים להצגה</p>
+            <div>
+              <p className="text-sm font-medium text-gray-600">חדרים</p>
+              <p className="text-sm text-gray-900">
+                {user.preferences.minRooms} - {user.preferences.maxRooms}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-600">ערים</p>
+              <p className="text-sm text-gray-900">
+                {user.preferences.cities?.length > 0 ? user.preferences.cities.join(', ') : 'כל הערים'}
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* Recent Deals */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">עסקאות אחרונות</h2>
-          </div>
-          <div className="p-6">
-            <p className="text-gray-500 text-center py-8">אין עסקאות אחרונות להצגה</p>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

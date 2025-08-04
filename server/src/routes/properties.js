@@ -74,32 +74,7 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// Get property by ID
-router.get('/:propertyId', optionalAuth, async (req, res) => {
-  try {
-    const property = await Property.findById(req.params.propertyId);
-    
-    if (!property) {
-      return res.status(404).json({
-        error: {
-          message: 'נכס לא נמצא'
-        }
-      });
-    }
-
-    res.json({ property });
-
-  } catch (error) {
-    console.error('שגיאה בקבלת נכס:', error);
-    res.status(500).json({
-      error: {
-        message: 'שגיאה בקבלת נכס'
-      }
-    });
-  }
-});
-
-// Get hot deals
+// Get hot deals - MUST COME BEFORE /:propertyId
 router.get('/hot-deals', optionalAuth, async (req, res) => {
   try {
     const { limit = 10 } = req.query;
@@ -123,100 +98,183 @@ router.get('/hot-deals', optionalAuth, async (req, res) => {
   }
 });
 
-// Get properties by city
-router.get('/city/:city', optionalAuth, async (req, res) => {
+// Get personalized hot deals based on user preferences - MUST COME BEFORE /:propertyId
+router.get('/hot-deals/personalized', authenticateToken, async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
-    const city = req.params.city;
+    const { limit = 10 } = req.query;
+    const user = req.user;
 
-    const properties = await Property.find({
-      city: new RegExp(city, 'i'),
+    // Build filter based on user preferences
+    const filter = {
+      isHotDeal: true,
       status: 'active'
-    })
-    .sort({ createdAt: -1 })
-    .limit(parseInt(limit))
-    .skip((parseInt(page) - 1) * parseInt(limit));
+    };
 
-    const total = await Property.countDocuments({
-      city: new RegExp(city, 'i'),
-      status: 'active'
+    // Add user preference filters
+    if (user.preferences) {
+      const prefs = user.preferences;
+      
+      // Price range filter
+      if (prefs.priceRange) {
+        filter.price = {
+          $gte: prefs.priceRange.min || 0,
+          $lte: prefs.priceRange.max || 10000000
+        };
+      }
+
+      // Cities filter
+      if (prefs.cities && prefs.cities.length > 0) {
+        filter.city = { $in: prefs.cities };
+      }
+
+      // Neighborhoods filter
+      if (prefs.neighborhoods && prefs.neighborhoods.length > 0) {
+        filter.neighborhood = { $in: prefs.neighborhoods };
+      }
+
+      // Property types filter
+      if (prefs.propertyTypes && prefs.propertyTypes.length > 0) {
+        filter.propertyType = { $in: prefs.propertyTypes };
+      }
+
+      // Rooms filter
+      if (prefs.minRooms || prefs.maxRooms) {
+        filter.rooms = {};
+        if (prefs.minRooms) filter.rooms.$gte = prefs.minRooms;
+        if (prefs.maxRooms) filter.rooms.$lte = prefs.maxRooms;
+      }
+
+      // Size filter
+      if (prefs.minSize || prefs.maxSize) {
+        filter.size = {};
+        if (prefs.minSize) filter.size.$gte = prefs.minSize;
+        if (prefs.maxSize) filter.size.$lte = prefs.maxSize;
+      }
+
+      // Eviction building filter
+      if (prefs.includeEvictionBuilding === false) {
+        filter.evictionBuilding = { $ne: true };
+      }
+    }
+
+    const personalizedHotDeals = await Property.find(filter)
+      .sort({ hotDealScore: -1, createdAt: -1 })
+      .limit(parseInt(limit));
+
+    res.json({ 
+      personalizedHotDeals,
+      userPreferences: user.preferences,
+      totalFound: personalizedHotDeals.length
     });
 
+  } catch (error) {
+    console.error('שגיאה בקבלת עסקאות חמות מותאמות אישית:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בקבלת עסקאות חמות מותאמות אישית'
+      }
+    });
+  }
+});
+
+// Get personalized properties based on user preferences - MUST COME BEFORE /:propertyId
+router.get('/personalized', authenticateToken, async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      includeHotDeals = true
+    } = req.query;
+    
+    const user = req.user;
+
+    // Build filter based on user preferences
+    const filter = {
+      status: 'active'
+    };
+
+    // Add hot deals filter if requested
+    if (includeHotDeals === 'true') {
+      filter.isHotDeal = true;
+    }
+
+    // Add user preference filters
+    if (user.preferences) {
+      const prefs = user.preferences;
+      
+      // Price range filter
+      if (prefs.priceRange) {
+        filter.price = {
+          $gte: prefs.priceRange.min || 0,
+          $lte: prefs.priceRange.max || 10000000
+        };
+      }
+
+      // Cities filter
+      if (prefs.cities && prefs.cities.length > 0) {
+        filter.city = { $in: prefs.cities };
+      }
+
+      // Neighborhoods filter
+      if (prefs.neighborhoods && prefs.neighborhoods.length > 0) {
+        filter.neighborhood = { $in: prefs.neighborhoods };
+      }
+
+      // Property types filter
+      if (prefs.propertyTypes && prefs.propertyTypes.length > 0) {
+        filter.propertyType = { $in: prefs.propertyTypes };
+      }
+
+      // Rooms filter
+      if (prefs.minRooms || prefs.maxRooms) {
+        filter.rooms = {};
+        if (prefs.minRooms) filter.rooms.$gte = prefs.minRooms;
+        if (prefs.maxRooms) filter.rooms.$lte = prefs.maxRooms;
+      }
+
+      // Size filter
+      if (prefs.minSize || prefs.maxSize) {
+        filter.size = {};
+        if (prefs.minSize) filter.size.$gte = prefs.minSize;
+        if (prefs.maxSize) filter.size.$lte = prefs.maxSize;
+      }
+
+      // Eviction building filter
+      if (prefs.includeEvictionBuilding === false) {
+        filter.evictionBuilding = { $ne: true };
+      }
+    }
+
+    const personalizedProperties = await Property.find(filter)
+      .sort({ isHotDeal: -1, hotDealScore: -1, createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Property.countDocuments(filter);
+
     res.json({
-      properties,
+      properties: personalizedProperties,
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / parseInt(limit)),
         totalProperties: total,
         propertiesPerPage: parseInt(limit)
-      }
+      },
+      userPreferences: user.preferences,
+      includeHotDeals: includeHotDeals === 'true'
     });
 
   } catch (error) {
-    console.error('שגיאה בקבלת נכסים לפי עיר:', error);
+    console.error('שגיאה בקבלת נכסים מותאמים אישית:', error);
     res.status(500).json({
       error: {
-        message: 'שגיאה בקבלת נכסים לפי עיר'
+        message: 'שגיאה בקבלת נכסים מותאמים אישית'
       }
     });
   }
 });
 
-// Get market analysis for property
-router.get('/:propertyId/analysis', optionalAuth, async (req, res) => {
-  try {
-    const property = await Property.findById(req.params.propertyId);
-    
-    if (!property) {
-      return res.status(404).json({
-        error: {
-          message: 'נכס לא נמצא'
-        }
-      });
-    }
-
-    // Get similar properties in the same area
-    const similarProperties = await Property.find({
-      city: property.city,
-      neighborhood: property.neighborhood,
-      propertyType: property.propertyType,
-      rooms: { $gte: property.rooms - 0.5, $lte: property.rooms + 0.5 },
-      _id: { $ne: property._id },
-      status: 'active'
-    })
-    .sort({ createdAt: -1 })
-    .limit(10);
-
-    // Calculate average price in area
-    const avgPriceInArea = similarProperties.length > 0
-      ? similarProperties.reduce((sum, prop) => sum + prop.price, 0) / similarProperties.length
-      : property.price;
-
-    // Calculate price comparison
-    const priceComparison = property.price / avgPriceInArea * 100;
-
-    res.json({
-      property,
-      analysis: {
-        averagePriceInArea: Math.round(avgPriceInArea),
-        priceComparison: Math.round(priceComparison),
-        similarProperties,
-        isGoodDeal: priceComparison < 90, // 10% below average
-        potentialSavings: Math.round(avgPriceInArea - property.price)
-      }
-    });
-
-  } catch (error) {
-    console.error('שגיאה בניתוח נכס:', error);
-    res.status(500).json({
-      error: {
-        message: 'שגיאה בניתוח נכס'
-      }
-    });
-  }
-});
-
-// Search properties
+// Search properties - MUST COME BEFORE /:propertyId
 router.get('/search', optionalAuth, async (req, res) => {
   try {
     const {
@@ -270,7 +328,7 @@ router.get('/search', optionalAuth, async (req, res) => {
   }
 });
 
-// Get property statistics
+// Get property statistics - MUST COME BEFORE /:propertyId
 router.get('/stats/overview', optionalAuth, async (req, res) => {
   try {
     const totalProperties = await Property.countDocuments({ status: 'active' });
@@ -299,6 +357,124 @@ router.get('/stats/overview', optionalAuth, async (req, res) => {
     res.status(500).json({
       error: {
         message: 'שגיאה בקבלת סטטיסטיקות'
+      }
+    });
+  }
+});
+
+// Get properties by city - MUST COME BEFORE /:propertyId
+router.get('/city/:city', optionalAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const city = req.params.city;
+
+    const properties = await Property.find({
+      city: new RegExp(city, 'i'),
+      status: 'active'
+    })
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await Property.countDocuments({
+      city: new RegExp(city, 'i'),
+      status: 'active'
+    });
+
+    res.json({
+      properties,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalProperties: total,
+        propertiesPerPage: parseInt(limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('שגיאה בקבלת נכסים לפי עיר:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בקבלת נכסים לפי עיר'
+      }
+    });
+  }
+});
+
+// Get market analysis for property - MUST COME BEFORE /:propertyId
+router.get('/:propertyId/analysis', optionalAuth, async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.propertyId);
+    
+    if (!property) {
+      return res.status(404).json({
+        error: {
+          message: 'נכס לא נמצא'
+        }
+      });
+    }
+
+    // Get similar properties in the same area
+    const similarProperties = await Property.find({
+      city: property.city,
+      neighborhood: property.neighborhood,
+      propertyType: property.propertyType,
+      rooms: { $gte: property.rooms - 0.5, $lte: property.rooms + 0.5 },
+      _id: { $ne: property._id },
+      status: 'active'
+    })
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+    // Calculate average price in area
+    const avgPriceInArea = similarProperties.length > 0
+      ? similarProperties.reduce((sum, prop) => sum + prop.price, 0) / similarProperties.length
+      : property.price;
+
+    // Calculate price comparison
+    const priceComparison = property.price / avgPriceInArea * 100;
+
+    res.json({
+      property,
+      analysis: {
+        averagePriceInArea: Math.round(avgPriceInArea),
+        priceComparison: Math.round(priceComparison),
+        similarProperties,
+        isGoodDeal: priceComparison < 90, // 10% below average
+        potentialSavings: Math.round(avgPriceInArea - property.price)
+      }
+    });
+
+  } catch (error) {
+    console.error('שגיאה בניתוח נכס:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בניתוח נכס'
+      }
+    });
+  }
+});
+
+// Get property by ID - MUST COME LAST (dynamic route)
+router.get('/:propertyId', optionalAuth, async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.propertyId);
+    
+    if (!property) {
+      return res.status(404).json({
+        error: {
+          message: 'נכס לא נמצא'
+        }
+      });
+    }
+
+    res.json({ property });
+
+  } catch (error) {
+    console.error('שגיאה בקבלת נכס:', error);
+    res.status(500).json({
+      error: {
+        message: 'שגיאה בקבלת נכס'
       }
     });
   }
