@@ -12,9 +12,9 @@ yarn-error.log*
 .env.production.local
 
 # Build outputs
-build/
-dist/
-out/
+client/build/
+client/dist/
+server/dist/
 
 # Logs
 logs
@@ -50,37 +50,11 @@ jspm_packages/
 # dotenv environment variables file
 .env
 
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# next.js build output
-.next
-
-# nuxt.js build output
-.nuxt
-
-# vuepress build output
-.vuepress/dist
-
-# Serverless directories
-.serverless
-
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS generated files
 .DS_Store
@@ -92,5 +66,5 @@ ehthumbs.db
 Thumbs.db
 
 # Temporary files
-tmp/
-temp/ 
+*.tmp
+*.temp 

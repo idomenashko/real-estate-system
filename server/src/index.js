@@ -117,18 +117,16 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 קבלת SIGTERM, סוגר שרת...');
-  mongoose.connection.close(() => {
-    console.log('✅ חיבור למסד הנתונים נסגר');
-    process.exit(0);
-  });
+  mongoose.connection.close();
+  console.log('✅ חיבור למסד הנתונים נסגר');
+  process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.log('🛑 קבלת SIGINT, סוגר שרת...');
-  mongoose.connection.close(() => {
-    console.log('✅ חיבור למסד הנתונים נסגר');
-    process.exit(0);
-  });
+  mongoose.connection.close();
+  console.log('✅ חיבור למסד הנתונים נסגר');
+  process.exit(0);
 });
 
 module.exports = app; 

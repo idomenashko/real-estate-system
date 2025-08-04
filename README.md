@@ -7,7 +7,7 @@
 - **Frontend**: React.js
 - **Backend**: Node.js + Express
 - **Database**: MongoDB
-- **Hosting**: Google Cloud Platform
+- **Hosting**: Vercel
 
 ## 🚀 התקנה והרצה
 
@@ -16,14 +16,14 @@
 - MongoDB
 - npm או yarn
 
-### התקנה
+### התקנה מקומית
 ```bash
 # Clone הפרויקט
 git clone [repository-url]
 cd real-estate-system
 
 # התקנת dependencies
-npm install
+npm run install-all
 
 # הגדרת משתני סביבה
 cp .env.example .env
@@ -31,6 +31,18 @@ cp .env.example .env
 
 # הרצת הפרויקט
 npm run dev
+```
+
+### פריסה ב-Vercel
+```bash
+# התקנת Vercel CLI
+npm i -g vercel
+
+# התחברות ל-Vercel
+vercel login
+
+# פריסה
+vercel --prod
 ```
 
 ## 📁 מבנה הפרויקט
@@ -79,12 +91,27 @@ npm run build
 
 ## 📋 משימות נוכחיות
 
-### שלב 1 - MVP
-- [ ] הגדרת פרויקט React + Node.js
-- [ ] מערכת אימות משתמשים
-- [ ] מודלים בסיסיים למסד נתונים
-- [ ] API בסיסי
-- [ ] דף כניסה ודשבורד
+### שלב 1 - MVP ✅
+- [x] הגדרת פרויקט React + Node.js
+- [x] מערכת אימות משתמשים
+- [x] מודלים בסיסיים למסד נתונים
+- [x] API בסיסי
+- [x] דף כניסה ודשבורד
+
+### שלב 2 - הרחבה 🔄
+- [ ] אינטגרציה עם אתרים נוספים
+- [ ] ניתוח מתקדם
+- [ ] דשבורד מנהל
+- [ ] מערכת עמלות
+
+## 🌐 פריסה
+
+הפרויקט מוכן לפריסה ב-Vercel עם:
+
+- **Frontend**: React app
+- **Backend**: Node.js API
+- **Database**: MongoDB Atlas
+- **Environment**: Production ready
 
 ## 🤝 תרומה לפרויקט
 
