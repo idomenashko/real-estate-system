@@ -36,7 +36,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-system')
+mongoose.connect(process.env.MONGODB_URI || process.env.MONGODB_URI_PROD || 'mongodb://localhost:27017/real-estate-system')
 .then(() => {
   console.log('✅ התחברות למסד הנתונים הצליחה');
 })
