@@ -1,29 +1,29 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/build",
   "builds": [
     {
       "src": "server/src/index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "server/src/index.js"
+      "dest": "/server/src/index.js"
     },
     {
       "src": "/(.*)",
-      "dest": "client/$1"
+      "dest": "/index.html"
     }
   ],
   "env": {
     "NODE_ENV": "production"
+  },
+  "functions": {
+    "server/src/index.js": {
+      "maxDuration": 30
+    }
   }
 } 
